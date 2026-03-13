@@ -42,3 +42,15 @@ let settleNudgeCPS tid n currentCps maxFraction pat = qtrigger tid $ seqP [
 -- e.g. 
 -- setcps 1.2
 -- d1 $ settleNudgeCPS 2 8 1.2 0.25 (s "hc(5,8)")
+
+
+let settleGroupNudge tid cycs maxN pat = qtrigger tid $ seqP [
+        (0, cycs, pat |+ nudge frozenEnv),
+        (cycs, 9999, pat)
+      ]
+      where
+        -- 1. Do the continuous math (chaos * countdown)
+        continuousEnv = range 0 maxN (slow cycs isaw) * rand
+        
+        -- 2. Freeze the final result exactly once per cycle!
+        frozenEnv     = segment 1 continuousEnv
