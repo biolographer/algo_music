@@ -1,0 +1,10 @@
+
+d1 $ stack [
+  every 2 (jux rev) $ struct "{1001 1010 1010 1010}%8"
+  $ s "bd" # gain 1.2,
+  foldEvery [3,5] (|- n 3) $ struct "{0001 0010 0001 0010}%8" $ s "sd" ,
+  struct "{1001 0010 0100 1010}%16" $ s "hh" # gain 1.2,
+  fast 2 $ every 2 ( |+ n "<{[6, 5] [7, 44] [5, 14]}%3>" ) $ n "{0 5 12 6}%8" # s "arpy sd arpy hh" # gain "1 0.7 1 1.4",
+  loopAt 4 $ struct "1000" $ s "",
+  fast 2 $ every 2 (|+  slow 4 (range 7 25 sine)) $ n "{2 4 5 _}%16" # s "arpy" # gain 1.2
+  ] # cps 0.61

@@ -1,0 +1,137 @@
+-- Pattern structures
+
+"1 2" |+ "1 2 3" --structure from left result "2 4"
+
+"1 2" +| "1 2 3" --structure from right result "2 3 5"
+
+"1 2" |+| "1 2 3" --combined structure result: "2 [3 4] 5"
+
+-- other operators * multiplication, / divison, - subtraction, % modulo
+
+-- example
+
+d1 $ sound "drum" |+| n "1 2 3"
+
+d1 $ sound "drum" |+| n "2 3" |%| n "4 5 6"
+
+
+
+--Patterns can also be numbered or named instead of d1 d2...
+p 1234 $ s "bd bd"
+
+p 1234 $ silence
+
+p "romeo" $ s "bd bd"
+
+--playing once
+d1 $ s "trump" # n (run 10)
+
+
+
+--------------------------------
+-- Synths
+-- Mutable intstruments https://club.tidalcycles.org/t/mutable-instruments-ugens/2730
+-- SC synthdefs https://club.tidalcycles.org/t/synthdefs-for-tidal/1092
+--
+-- standard parameters: sustain (default 1), pan, freq (def 440)
+--
+--------------------------------
+
+--supergong, additive synth
+
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "supergong"
+  # decay "[0.1 0.2]/4"
+  # voice "[0.2 1]/8" --default 0
+  # sustain 2
+
+-- supersquare, subtractive moog inspired
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "supersquare"
+  # decay "[0.71 0.8]/4"
+  # slow 8 (voice "0.9 0.3 0.1")
+  # sustain 0.2
+  # semitone 21 -- adds second oscillator, semitones up
+  # resonance 0.2 -- 0.2 default
+  # lfo 30 --default 1
+  # rate 30 -- lfo rate
+  # pitch1 10 --filter frequency scaling multiplier
+
+  -- supersquare, subtractive moog inspired
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "supersaw"
+  # decay "[0.71 0.8]/4"
+  # slow 8 (voice "0.9 0.3 0.1")
+  # sustain 0.2
+  # semitone 21 -- adds second oscillator, semitones up
+  # resonance 10
+  # lfo 10 --default 1
+  # rate 0.3 -- lfo rate
+  # pitch1 1 --filter frequency scaling multiplier
+
+-- superpwm, pulse width modulation
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "superpwm"
+  # decay "[0.71 0.8]/4"
+  # slow 8 (voice "0.9 0.3 0.1")
+  # sustain 0.2
+  # semitone 16 -- adds second oscillator, semitones up
+  # resonance 0.2
+  # lfo 1 --default 1
+  # rate 1 -- lfo rate
+  # pitch1 1 --filter frequency scaling multiplier
+
+
+-- atari style
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "superchip"
+  # slide 1 -- slide
+  # voice "[0.8 0.3]/8" -- < 0.9
+  # sustain 0.2
+  # rate 1 --  default 1
+  # pitch2 0.9 --ratio of harmonics
+  # pitch3 0.3
+
+-- hoover, tranc style
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "superhoover"
+  # slide 0
+  # sustain 0.2
+  + up (slow 4 (run 16))
+
+-- Physical modelling
+-- supermandolin
+
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "supermandolin"
+  # sustain 2
+
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "superpiano"
+  # sustain 2
+
+d1 $ n (slow 2 $ fmap (*7) $ run 8)
+  # s "superfork"
+  # sustain 2
+
+
+
+--FM synthesis
+-- https://gist.github.com/loopier/2535109e5d64cc43f56475d902cda905
+--To use superfm, you need to initialize all of the parameter variables you will use. Get the full list from the GitHub source (above) and execute this in your editor or add it to your BootTidal.hs.
+
+d1 $ s "superfm" # n 0 #octave "<4 5 6>"
+  #amp1 1 #amp3 1
+  #mod11 1 #feedback 2
+  #mod12 "0 1 2"
+  #ratio2 3
+  #eglevel22 0.1
+
+
+
+-- Drums
+
+-- 808 kick
+d1 $ s "super808" # n 0
+  # rate 1
+  # voice 0

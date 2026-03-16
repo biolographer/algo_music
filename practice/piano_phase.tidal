@@ -1,0 +1,53 @@
+-- testing piano phase from https://www.youtube.com/watch?v=Hc-lcAajQxo
+-- inspired by steve reichs "piano phase"
+
+setcps(140/120)
+
+d1 -- $  add choose [1/2, 1/3, 1/4, 0]
+    $ fast 3
+    $ every 3 (rev . (+ up 12))
+    $ (# gain (range 0.75 1 (slow 2 sine)))
+    $ mask "{110 111 101 100}%6" -- idea with binary masking (binaryN 12 "4053")
+    $ note "{b5 e6 b5 g5}%2 " # s "supermandolin" -- video sends midi to hardware synth
+    # sustain 1
+    # lpf 1500
+    # dry 0.5 -- reverb parameters dry room size
+    # room 0.6
+    # size 0.8
+    # cps 1 -- (range 0.5 1.1 sine)
+   --  + up "{3 4 6}%8"
+
+ --- # delay 0.2 -- delay parameters delay (= mix) delaytime  delayfeedback
+    -- # delaytime 0.25
+    -- # delayfeedback 0.1
+
+    -- # dry 0.5 -- reverb parameters dry room size
+    -- # room 0.6
+    -- # size 0.8
+
+    -- # voice (slow 6 $ range 0.2 3 $ sine)
+
+
+d2
+    $ slow 2
+    $ struct "1(7,12)"
+    $ note "[b4, b5]" # s "jungbass:12"
+    # gain 0.9
+    # dry 0.3 -- reverb parameters dry room size
+    # room 0.6
+    # size 0.8
+    + up "<0 0 -4 -2>/2"
+
+d3 $
+    stack [
+    struct "11" $ s "bd:20" # gain 1.2,
+    struct "01" $ s "sn:1" # gain 1.1
+    ]
+
+
+
+d4 $ slow 2 $  striate 32 $ s "foo:25" # gain 1.1 # crush 0
+
+d4 $ silence
+
+d2 $ slow 2 $ struct "1(7,12)" $ note "[b5, b5]" # s "jungbass:12"

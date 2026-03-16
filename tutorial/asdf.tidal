@@ -1,0 +1,172 @@
+-- tidal cycles tutorial
+-----------------------------
+-----------------------------
+
+-- combining patterns
+-- "1 2" + "4 5 6" = "5 |6|7| 8"
+
+d1 $ sound "drum" |+| note "1 2" + note "4 5 6"
+
+hush
+
+-- "1 2" + "4 5 6 7" = "5 6 8 9"
+--  | 1 | 2 |
+--  |4|5|6|7|
+-- =|5|6|8|9|
+
+
+d1 $ sound "drum" + n "1 2" + n "4 5 6 7"
+
+d1 $ sound "drum" + n "5 6 8 9"
+
+-- "1 2" * "3 4 5"
+--  | 1   |   2 |
+--  | 3 | 4 | 5 |
+-- =| 3 |4|8| 10| => 3 [4 8] 10
+
+d1 $ sound "drum" + n "1 2" * n "3 4 5"
+
+d1 $ sound "drum" + n "3 [4 8] 10"
+
+
+d1 $ sound "drum" + n "1 2" |* n "3 4 5 1 4"
+d1 $ sound "drum" + n "3 4 [10] 2 8"
+
+
+
+-------------------------
+-- MINI NOTATION
+-- https://tidalcycles.org/docs/patternlib/tutorials/mini_notation
+-------------------------
+
+
+-- rest
+d1 $ s "~ hh"
+
+-- pattern grouping
+d1 $ s "[bd sd] hh"
+d1 $ fastcat [s "bd sd", s "hh"]
+
+-- shorthand pattern grouping
+d1 $ s "bd sd . hh hh hh"
+d1 $ s "[bd sd] [hh hh hh]"
+
+-- play multiple patterns at same time
+d1 $ s "[bd sd, hh hh hh]"
+
+d1 $ stack [s "bd sd", s "hh hh hh" # amp 0.1] -- more modular
+
+-- repeat pattern
+d1 $ s "bd*2 sd"
+d1 $ s "[bd bd] sd"
+
+-- slow down a pattern
+d1 $ s "bd/2"
+d2 $ s (slow 2 $ "bd")
+
+-- random choice in []
+d1 $ s "bd [sn | cp | hh]"
+
+-- alternate things between <>
+d1 $ s "bd <sd hh cp>"
+d1 $ slow 3 $ s "bd sd bd hh bd cp"
+
+-- replicate pattern
+d1 $ s "bd!3 sd"
+d1 $ s "bd bd bd sd"
+
+-- elongate pattern
+d1 $ s "bd _ _ ~ sd _" -- difference between rest and _?
+d1 $ s "bd@4 sd@2"
+d1 $ s "bd _ _ _ sd _"
+hush
+
+-- randomly remove event
+d1 $ s "bd? sd"
+d1 $ fastcat [degradeBy 0.5 $ s "bd", s "sd"]
+d1 $ s "bd hh? bd hh?0.8"
+
+-- selecting samples
+d1 $ s "bd:3"
+
+-- Euclidean sequences
+d1 $ s "bd(3,8)"
+d1 $ euclid 3 8 $ s "bd"
+d1 $ s "[bd(3,8), cp(2,8), hh(7,8), bass:1(7,16)]"
+d1 $ s "[bd(5,8), cp(4,8), hh(7,8), bass:1(7,16)]"
+d1 $ s "[bd(5,8), cp(1,8)?, hh(7,8), bass:1(8,16)]"
+
+-- polymetric sequences
+d1 $ s "{bd bd bd bd, cp cp hh}"
+
+-- polymetric sequence subdivision
+d1 $ s "{bd cp hh}%8"
+
+
+----------------------------------------
+--pattern grouping
+p "demo" $ s "bd bd bd bd"
+
+p "demo" $ s "[bd hh] bd bd"
+
+p "demo" $ s "[bd [hh [cp sn:2] hh]] bd bd bd"
+
+-- shorthand
+d1 $ s "bd*3 . hh*4 cp"
+d1 $ s "[bd bd bd] [[hh hh hh hh] cp]"
+
+p "demo" $ s "[bd*3 . hh:2*2] . hh*4 cp"
+
+-- superposition
+d1 $ s "[bd*3, hh*4, [~ cp]*2, bass*4]"
+
+-- repetition
+d1 $ note "[[c3*3], [c e <g a> c6*3]]" # s "superpiano"
+d1 $ s "cp cp cp*2"
+
+-- step division
+d1 $ s "bd cp/2" -- clap plays every 2nd cycle
+d1 $ s "[ bd [[~ <sd:3*2? sd:2*3? [hh:2 | [sn:3*6]/2]>], cp/2], hh hh]"
+
+-- alternate
+d1 $ fast 2 $ n "<c e g>" # s "superpiano"
+
+-- replicate
+d2 $ s "bd!2 cp!2"
+d2 $ s "bd!2 cp*2" -- not the same
+
+
+-- Sample Selection
+p "scroll" $ s "arpy:1 arpy:2 arpy:3 arpy:4 arpy:5"
+p "scroll" $  s "[bd*4, [arpy:1,arpy:2,arpy:3,arpy:4,arpy:5](5,8)]"
+
+-- Euclidean Rhythm
+d1 $ s "{bd([3|5],6), [[[hh:2*3?|sn:1*2] sn:1] | [sn:1(4,12,2)]/2?], hh*4}"
+d1 $ s "[bd(4,4), hh(4,6)]" + n "[34| 4| 0] [34| 4| 0] [34, 4  0]"
+
+d1 $ s "[808(4,11)]" + n "3 4" -- frank zappa Outside now
+
+setcps(1.1)
+
+
+
+d1
+    $ slow 8
+    $ s "empty"
+    # speed "[1.0, 1.01]"
+    # gain "0.9"
+    # lpf "20200"
+
+d2
+    $ slow 2
+    $ jux ((3/8) ~>)
+    $ sound "autech2(3,8,[0])"
+    # gain "0.6"
+
+
+
+    # speed "[1.005, 1.0]"
+    # n "{0}%7"
+    # lpf (scale 400 18000 $ slow 4 $ sine1)
+    -- # resonance "0.1"
+    -- |*| speed "[-1.0,1.5]"

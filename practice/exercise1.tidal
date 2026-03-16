@@ -1,0 +1,34 @@
+
+d1 $ n "0 1 2 3" # s "drum" # nudge (range 0.8 1 (fast 2 $ sine))
+d1 $ silence
+
+
+d3 $ s "gabba(3,8, <0 0 0 1>)" 
+    # nudge  (fast 0.25 $ sine / 30) 
+
+d2 $ s "~ hh ~ hh*2"
+
+d1  $ off (0.5) (loopAt 4) 
+    $  ("<0.25 0.75>" ~>) 
+    $ slow 2
+    $ every 1 (jux rev )  
+    $ sometimes (# crush 4) 
+    $ striate 32 
+    $ s "alex:1" 
+--    # nudge (range 0 0.0 (slow 4 $ sine))
+
+    
+
+d4 $ off (1/8) (+  up 2) 
+    $ note "c f g a" # s "gtr"
+
+d1 
+    $ slow 4
+    $ (off (1/2) (+ up 3))
+  --  $ mask "[100 111 011 101 000]"
+    $ note "b4"
+    # s "em2:1" # lpf 2000 # legato 4  # dry 0.7 -- reverb parameters dry room size
+    # room 0.6
+    # size 0.8
+    + up "{0 12 9  5 _ -2 0 _ 7 4 _ 7  9 5 _ }%15" 
+

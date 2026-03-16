@@ -1,0 +1,218 @@
+
+let lis = [1,2..10]
+    pow = [2^^(-x) | x <- lis]
+
+:t lis
+
+d1  $ hurry 2 $ ((segment 4 $ range 0 0.3 $ sine) ~> )
+    -- $ (pat ~>)
+    $ s "bd [~ sd] sn*2? [sd sd?]" # speed (range 0.1 0.5 $ slow "<0.5 3 1>" sine)
+
+d1  $ hurry 2  $ jux ( (0.25 ~>) .
+          (# speed (fast 2 $ range "2 0.5 0.1" "<3 4 5 7>" $ sine)) .
+          (# squiz ( range 0 2 $ slow 0.5 $ sine)) )
+        -- $ (pat ~>)
+        $ s "bd [~ sd] sn*2? [sd sd?]" # speed (range 0.1 0.5 $ slow "<0.5 3 1>" sine)
+
+
+hush
+
+d1 $ stack [s "hh*4"
+    , slow 2 $ s "{bd ~ sd bd [cp? ~] sd*2 ~}%8"
+    , jux ( (0.25 ~> ) . (# speed (slow 4 $ "2 5 8  5"))) $ s "sd*4"]
+
+d1
+  $ loopAt 2
+  $ hurry 2
+  $ jux (
+    ( rev . (degradeBy 0.8))
+  . (# speed ( slow 4 $ "4 5 15 8"))
+    )
+  $ slice 8 (segment 8 $ irand 8)
+  $ struct "1 1 [1 _ 0  1 _]" $ s "alex" # gain 1
+
+d2
+  $ sometimesBy 0.5 (# squiz (slow 4 $ "4 5 1 8"))
+  $ every 2   (jux (rev . ( 0.25 ~>))
+   . (plyWith (slow 4 $  "2 2") ((|* gain 0.9) )
+   . (|* speed 1.5)))
+  $ s "bd*2 sd bd cp sn bd bd sn"
+  # n (irand 20)
+  # gain 1.1
+
+d2 $ silence
+
+d3 $ s "cpu(6,16, <0 3>)" # gain 1.3 # room 0.4
+
+d3 $ fast 4 $  n (irand 25 ) # s "dr"
+
+  -- # gain (slow 8 $ range 1.2 1.2 $ sine)
+
+
+
+
+let mx = [1,1,0,0]
+    glo' g l o = gain g # legato l # orbit o
+
+d1
+  $ slow 4
+  $ stack [ n (scale "major" "-1 0 _ _ 1 2 2")
+    , n (scale "major" "-2 -2 _ _ 0 0 0")
+  ]
+  # s "superpiano"
+  |+ n "d4"
+
+
+import Data.List
+
+patternToList :: Pattern a -> [a]
+patternToList pat = map value $ sortOn whole $ queryArc pat (Arc 0 1)
+
+
+let mv = "-1 0 _ _ 1 2 2"
+    tv = mv |- 1
+    chords = "<a'm9 e'7sus4>"
+    charp = n (arp "up" chords)
+    x = patternToList charp
+
+
+d1 $ n (arp "<up down>" chords) # sound "superpiano"
+
+n (arp "up" chords) |- n "a5"
+
+
+fmap (x!!) (mod (sig floor) (pure (length x)))
+
+
+
+d1
+  $ slow 4
+  $ n (scale "major"
+      $ stack [ mv
+        ,  "-2 -2 _ _ 0 0 0"
+      ])
+  # s "superpiano"
+  |+ n "a4"
+
+
+d1 $ n (toScale [0,2,4,5,7,9,11] "[-7, 0] 0 1 2 3 4 5 6 7") # sound "superpiano"
+
+
+let y = toScale [0,2,4,5,7,9,11] "[-7, 0] 0 1 2 3 4 5 6 7"
+    z pat = toScale [4,4,7,7,11,11,13] pat
+    a = patternToList (n (arp "up" "c'maj7"))
+
+
+d1 $ n (z "[-7, 0] 1 2 3 4 5 6 7") # sound "superpiano"
+
+
+patternToList ( n (fromList [1,2,3]))
+
+:t
+
+patternToList (n (arp "up" "c'maj7"))
+
+n (arp "up" "c'major")
+
+
+
+let dorian = [0,2,3,5,7,9,10]
+
+d1  $ fudgeToScale dorian
+  $ juxBy 0.5 ((|+ up "[0,4,-5]") . (# s  "superpiano"))
+  $ up "<[0 [2 3] 5 7] [4 <2 -2>]>" # s "superhammond"
+
+
+let fudgeToScale scaleIntervals = fix (|- up 1) (up $ parseBP_E $ completeAvoidList scaleIntervals) where
+                completeAvoidList scaleIntervals = show $ concat $ transposeScale avoidIntervals <$> [(-3)..3]
+                transposeScale avoidIntervals oct = (+ (oct * 12)) <$> avoidIntervals
+                avoidIntervals  = filter (\n -> notElem n scaleIntervals) [0..11]
+
+
+(+ (1 * 12)) <$> [1,4,6,8,11]
+
+
+let completeAvoidList = show $ concat $ transposeScale [4,4,7,7,11,11,13] <$> [(-3)..3]
+
+parseBP_E $ completeAvoidList
+
+
+
+
+do
+  resetCycles
+  d1 $ when (<=4) (striate 4) $ sound "hh hc"
+
+do
+  resetCycles
+  let pat = "bd [~ sd]"
+  let noCycles = 20
+  d1 $ ifp (< noCycles)
+    (# nudge (range 1 0 $ slow (noCycles*2) (cosine*rand )))
+    (# gain 1) $
+    s pat
+  d2 $ s "sn" # speed 2
+
+
+
+let anneal p = ifp (< 20) (# nudge ( range 0 2 $ slow (20*1.2) (cosine + 0.1*rand )))
+  (# gain 1) $ p
+
+
+getnow
+
+d1 $ s "cp" # nudge 0.9
+
+d2 $ s "sn" # pan 1
+
+setcps 1.2
+
+do
+  resetCycles
+  let cyclenr = 20
+  let rrand = range 0.1 0.5 $ rand
+  d1 $ ifp (< cyclenr)
+    (# nudge (slow (2*cyclenr) $ smooth "1 0" * rrand))
+    (# pan (range 0.2 0.6 $ sine))
+    $ s "bd [~ sd] [hh, bd] sd"
+  d2 $ s "drum" # speed 1.2
+
+do
+  let asdf =  sometimesBy 0.6 (# squiz (slow 2 $ "4 5 1 8?"))
+              $ every 2 (jux (rev . ( 0.25 ~>))
+              . (plyWith (slow 4 $  "2 2") ((|* gain 0.9) )
+              . (|* speed "2 [5 1] 3? 6")))
+              $ s "{bd [sd cr] bd  cr sn}%4"
+              # n (irand 20)
+              # gain 1
+              # distort "0 0.2 0.8?"
+  -- setcps 1
+  -- resetCycles
+  let cyclenr = 20
+  let rrand = range 0.1 0.5 $ rand
+  d1
+    $ ifp (< cyclenr)
+      ((# nudge ( slow (2*cyclenr) $ smooth "1 0" * 0.8 * rrand))
+      . (# gain ( slow (2*cyclenr)$ smooth "0 1" )))
+      (# gain 1.2)
+    $ asdf
+
+d2
+  $ every 2 (jux (# room 0.4))
+  $ s "{drum cr [cr? drum] [sn hc?]}%4"
+  # n (irand 2) # cut 2
+
+d3 $ s "bd!2" # speed 1.2 # gain 1
+
+getnow
+
+
+
+let asdf =  sometimesBy 0.5 (# squiz (slow 2 $ "4 5 1 8"))
+            $ every 2 (jux (rev . ( 0.25 ~>))
+            . (plyWith (slow 4 $  "2 2") ((|* gain 0.9) )
+            . (|* speed "1.5 2 1.2 1.1")))
+            $ s "{bd [drum] bd  cr sn}%4" # n (irand 20) # gain 1
+
+
+d1 $ asdf

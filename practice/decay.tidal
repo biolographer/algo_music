@@ -1,0 +1,27 @@
+let randomNormalize :: ID -> Time -> Time -> ControlPattern -> IO ()
+    randomNormalize i lifespan releasetime =
+      transition tidal True (_randomNormalize lifespan releasetime) i
+
+    _randomNormalize :: Time -> Time -> Time -> [ControlPattern] -> ControlPattern
+    _randomNormalize _ _ _ [] = silence
+    _randomNormalize lifespan _ now (p : _) =
+      overlay
+        (filterWhen (< (now + lifespan)) (p # n (+ (scaledRandShiftEaseOut now lifespan))))
+        (filterWhen (>= (now + lifespan)) p)
+
+    scaledRandShiftEaseOut :: Time -> Time -> Pattern Double
+    scaledRandShiftEaseOut start lifespan =
+      let end = start + lifespan
+      in ((*) <$> randScaleEaseOut start end <*> (fromIntegral <$> (irand 12 - 6)))
+
+    randScaleEaseOut :: Time -> Time -> Pattern Double
+    randScaleEaseOut start end =
+      let linear = ((end -) <$> time) / pure (end - start)
+      in (** 2) <$> linear
+
+
+
+randomNormalize "lead" 8 2 $ sound "superpiano" # n (scale "minor" "0 2 3 5 7 8 10")
+
+
+d1 $ s "bd*4" # n "1 .. 10"

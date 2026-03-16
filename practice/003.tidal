@@ -1,0 +1,95 @@
+-- mini notation
+
+-- rest ~
+d1 $ s "~ bd:12"
+
+-- grouping & grouping shorthands
+
+d1 $ s "[bd sd] hh"
+
+d1 $ fastcat [s "bd sd", s "hh"]
+
+d1 $ s "bd sd . hh "
+
+-- multiple patterns
+
+d1 $ stack [ s "bd sd . ~", s " ~ ~ . hh"]
+
+d1 $ s "[[bd sd]*2 ~ cp , {~ hh}%6]"
+
+-- repeating
+d1 $ stack [n "{1*2 5 3*3/2 <2 4*3>}%6"  # s "808hc 808lc? 808mc" # speed (slow 4 $ range 0.9 1.1 saw),
+s  "[[bd sd]*2 ~ cp , {~ hh}%6]"]
+
+-- slow down patterns
+d1 $ slow 2 $ "[bd bd]"
+
+d1 $ s "[bd bd]/2"
+
+-- alternations
+
+d1 $ s "[bd | cp]" -- random choice between bd and cp
+
+d1 $ fast 2 $ "< bd sd . [cp bd:12*2 | bd:11 cp:2 . sd:2] >" -- alternate between
+
+-- replicate
+
+d1 $ s "bd!3 sd"
+
+d1 $ s "bd bd bd sd"
+
+-- elongation better for long patterns
+
+d1 $ slow 2 $ s "808cy _ _ sd 808cy ~ ~ sd"
+
+d1 $ s "superpiano@3 superpiano ~ ~" -- "X@3" will be "X _ _"
+
+
+--randomly remove events
+
+d1 $ slow 2 $ n "{bd!8 , 1 [9*2 . 4?] 6 [1 [5 7?]] [8?  . 7  9?]}" # s "dr"
+
+d1 $ slow 1 $ n "{ 12!4 , 1 [9*2 . 4?] 6 [1 [5 7?]] [8?  . 7  9?]}" # s "bd  dr . dr  bd sd?"
+
+-- polymeter
+
+d1 $ s "{bd bd bd bd, cp cp hh}"
+
+--polymetric sequence subdivision
+
+d1 $ s "{bd cp:1 sd cp:1}%8"
+
+d2 $ s "hh!3 hh?" # gain 1.2
+
+
+d1 $ s "{bd hh 808:4}%8"
+
+d2 $ slow 1 $ n "{9 1 5? [3 . 6 ] 5 _ 3}%<8 6>" # s "808cy? 808cy 808cy _" # speed (fast 2 $ range "0 0.2 0.3?" "0.6 1 0.4" saw) # gain (slow 2 $ range 0.6 0.7 sine) # djf (slow 3 $ range 0.3 0.7 sine) # scram 0.01
+
+-- euclidean
+
+d1 $ s "bd:14(4,8,<0 1>)" # gain 0.9 # distort "{0.5 0.6 1 0.7 0.3}%8"
+
+d3 $ every 3 (degradeBy 0.1)$ s "[sd:2(6, 16, <2 3 5 4>), cp:2(4, 12)]"
+  # gain ( slow 1 $ range 0.9 1.05 saw) # crush 5
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- notes
+
+d1 $ n "[1, 5, 8, 12]" #s "superpiano" -- "X@3" will be "X _ _"

@@ -1,0 +1,63 @@
+-- making simple beats
+d1
+  $ s "[bd, hh*2 ] [sn:2, hh*2]"
+
+d1
+  $ s "[bd sn:2, hh*4]"
+
+-- combining voices of different patterns
+
+-- overlay
+d1
+  $ s (overlay "bd sn:2" "hh*4")
+
+-- <>
+d1
+  $ s ("bd:1 [sn:2 ~  ~ sn:2?]" <> "hh*4")
+
+-- stack
+setcps (120/60/4)
+
+d1
+  $ stack [
+   slow 2 $ s "[bd ~] [bd  [~ bd]]",
+   slow 2 $ s "[~ sn:4] [[~ ~ ~ sn:4] [~ ~ ~ sn:4]]",
+  s "hh*4"
+  ]
+
+
+-- superimpose
+d1 $ stack [ superimpose (fast 2) $
+  sound "{bd sn:4 [~ bd] hh*2}%3",
+  every 2 degrade $ s "{hh:3 hh:2}%4 " # gain 0.9
+]
+
+-- layer
+d1 $ stack [
+  layer [fast 2,  rev] $ sound "{sn:4*2 hh*3 bd sn:4 [~ bd] hh*2}%3"
+  --every 2 degrade $ s "{hh:3 hh:2}%4 " # gain 0.9
+]
+
+
+--steps
+d1 $ s (steps [("cp","x  x"),("bd", "xxxx")])
+
+d1 $
+  s (steps [("bd", "x   x  "),
+            ("sn:4", "x  x "),
+            ("hh", "xxxx")])
+
+--iterator
+d1 $ fast 2 $ iter 4 $ s "bd sn:4 cp:2 bd sn:4"
+
+
+-- lazy beat
+d1 $ stack [
+  s "bd [~ bd] bd ~",
+  s "~ sd [~ sd] ~"]
+
+-- latin beats
+d1 $ stack [
+  every 2 (jux rev) $ struct "{1000 1010}%16" $ s "bd",
+  struct "{0001 0010 0001 0010}%8" $ s "sd" ,
+  struct "{1001 0010 0100 1010}%16" $ s "hh"]

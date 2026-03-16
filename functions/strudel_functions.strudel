@@ -1,0 +1,17 @@
+const settleNudge = (cycles, maxFraction, pat) => {
+  // 1. Create the sloppy version. 
+  // isaw.slow(cycles) goes from 1 to 0 perfectly over the given cycles.
+  const decayEnv = rand.range(0, maxFraction).mul(isaw.slow(cycles));
+  const sloppyPat = pat.nudge(decayEnv);
+  
+  // 2. Arrange them sequentially on a timeline.
+  return arrange(
+    [cycles, sloppyPat], // Play the sloppy version for exactly 'cycles'
+    [9999, pat]          // Instantly switch to the perfect version for 9999 cycles
+  );
+};
+
+$: stack(
+  s("mc303_hh"), // The steady, on-grid reference
+  settleNudge(3, 0.8, s("bd*4").legato("<1>")) // Drunk for 3 cycles, perfect for the next 16 hours
+)._pianoroll()

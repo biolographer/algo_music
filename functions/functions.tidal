@@ -1,0 +1,56 @@
+let settleShift tid n maxShift pat = qtrigger tid $ seqP [
+        (0, n, shiftAmount ~> pat),
+        (n, 9999, pat)
+      ]
+      where
+        -- isaw goes from 1 to 0. Slowed down over 'n' cycles.
+        decayEnv    = slow n isaw 
+        -- Creates discrete random steps so events don't fragment
+        randGrid    = segment 16 rand
+        -- Multiplies the decaying envelope by the random values
+        shiftAmount = range 0 maxShift decayEnv * randGrid
+
+-- e.g. d1 $ settleShift 1 4 0.5 (s "bd hh sn hh")
+
+let settleNudge tid n maxNudge pat = qtrigger tid $ seqP [
+        (0, n, pat |+ nudge (range 0 maxNudge decayEnv * rand)),
+        (n, 9999, pat)
+      ]
+      where decayEnv = slow n isaw
+
+-- e.g. d1 $ settleNudge 2 8 0.2 (s "bd ~ [~ hh] sn*3")
+
+
+let settleGlitch tid n maxShift pat = qtrigger tid $ seqP [
+        (0, n, shiftAmount ~> pat),
+        (n, 9999, pat)
+      ]
+      where
+        decayEnv    = slow n isaw 
+        -- Notice the lack of 'segment'. This is continuous noise.
+        shiftAmount = range 0 maxShift decayEnv * rand
+-- e.g. d1 $ settleGlitch 1 8 0.5 (s "bd ~ sn:2 ~") 
+
+let settleNudgeCPS tid n currentCps maxFraction pat = qtrigger tid $ seqP [
+        (0, n, pat |+ nudge (range 0 maxNudgeInSeconds decayEnv * rand)),
+        (n, 9999, pat)
+      ]
+      where 
+        decayEnv          = slow n isaw
+        -- Converts the fraction of a cycle into absolute seconds
+        maxNudgeInSeconds = maxFraction * (1 / currentCps)
+-- e.g. 
+-- setcps 1.2
+-- d1 $ settleNudgeCPS 2 8 1.2 0.25 (s "hc(5,8)")
+
+
+let settleGroupNudge tid cycs maxN pat = qtrigger tid $ seqP [
+        (0, cycs, pat |+ nudge frozenEnv),
+        (cycs, 9999, pat)
+      ]
+      where
+        -- 1. Do the continuous math (chaos * countdown)
+        continuousEnv = range 0 maxN (slow cycs isaw) * rand
+        
+        -- 2. Freeze the final result exactly once per cycle!
+        frozenEnv     = segment 1 continuousEnv
