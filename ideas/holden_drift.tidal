@@ -1,0 +1,26 @@
+-- 1. Create a "Human Drift" variable
+-- 'slow 8 $ lowpass (rand)' creates a smooth, wandering random value
+let 
+	humanDrift = (slow 32 $ range (-0.02) 0.02 sine) + (slow 8 $ range (-0.01) 0.01 rand)
+
+-- 2. Apply it to your tracks
+-- Track 1 (Drums)
+d1 $ s "808bd*4" # nudge humanDrift
+
+-- Track 2 (Logic Synth) - It "listens" to the same drift
+d2 $ arp "up" 
+   $ note "[c4, e4, g4, b4]" 
+   # s "logic"
+   # nudge (humanDrift + (range (-0.005) 0.005 rand))
+
+
+-- Define a global "Group Tension"
+let tension = range 0 1 $ slow 16 $ triangle
+
+d1 $ jux (rev) 
+   $ chunk 4 (|+ nudge 0.02) -- Every 4th cycle, this track "pushes" ahead
+   $ s "bd [~ sn] bd*2 [~ sn]" 
+   # nudge (tension * 0.05) -- The whole track drifts as tension increases
+
+d2 $ note "c4(3,8)" # s "logic" 
+   # nudge (tension * 0.05) -- Stays "locked" to the kick drum's drift
