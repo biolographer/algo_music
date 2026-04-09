@@ -6,7 +6,7 @@ SuperDirt.start;
 s.waitForBoot {
 ~dirt = SuperDirt(2, s);
 
-~dirt.start(57120, [0, 0]);
+~dirt.start(57120, 0 ! 12);
 
 MIDIClient.init;
 

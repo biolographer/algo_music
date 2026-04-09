@@ -23,7 +23,7 @@ s.waitForBoot({
     };
 
     s.sync;
-    ~dirt.start(57120, [0, 0]);
+    ~dirt.start(57120, 0 ! 12);
     "Tidal is ready with custom path support.".postln;
 });
 )

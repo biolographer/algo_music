@@ -43,7 +43,7 @@ s.waitForBoot({
     };
 
     s.sync;
-    ~dirt.start(57120, [0, 0]);
+    ~dirt.start(57120, 0 ! 12);
     "--------------------------------------".postln;
     "Tidal is ready! Booted successfully.".postln;
     "--------------------------------------".postln;

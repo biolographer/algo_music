@@ -3,7 +3,18 @@
 
 cps (30/60)
 
+-- Logic
+d1 $ jux (rev . off "<0.25 0.125 0.5>" (|+ note "<12 24 7>"))
+   $ arp "<up down>" -- Added Arpeggiation
+   $ every "{4 2}%4" (plyWith 3 (|* gain 0.8))
+   $ note "[c4, e4, g4, b4]"         -- Changed to a Chord [note, note]
+   # s "logic"
+   # gain 1.4
+   # midichan 0
 
+d2 $ note "{c3 e3 g3 b3}%3" # s "logic" # midichan 1
+
+d3 $ s "bd _ 808sd _" # gain 1.5
 
 -- Control change values for manipulating values of e.g. filters midicmd or ccv/ccn notation
 d1 $ stack [ slow 2 $
