@@ -19,13 +19,20 @@ s.waitForBoot {
     // ---------------------------------------------------------
     // 2. INITIALIZE MIDI (IN AND OUT)
     // ---------------------------------------------------------
+    // ---------------------------------------------------------
+    // 2. INITIALIZE MIDI (IN AND OUT)
+    // ---------------------------------------------------------
     MIDIClient.init;
     
     // Give the MIDI client a fraction of a second to populate devices
     0.5.wait;
     
-    // Connect all incoming MIDI devices (for your MIDI keyboard)
-    MIDIIn.connectAll;
+    // Connect to everything EXCEPT the IAC Driver to prevent feedback loops!
+    MIDIClient.sources.do { |port, index|
+        if (port.device != "IAC Driver") {
+            MIDIIn.connect(index, port);
+        };
+    };
 
     // ---------------------------------------------------------
     // 3. SETUP MIDI OUT (To Logic Pro)
