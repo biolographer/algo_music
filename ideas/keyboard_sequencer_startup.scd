@@ -13,7 +13,8 @@ s.waitForBoot {
     ~dirt = SuperDirt(2, s); // 2 audio channels
     ~dirt.loadSoundFiles;    // Load default Tidal samples
     s.sync;
-    ~dirt.start(57120, 0 ! 12);
+    ~dirt.start;
+    // ~dirt.start(57120, 0 ! 12);
 
     // ---------------------------------------------------------
     // 2. INITIALIZE MIDI (IN AND OUT)
@@ -62,10 +63,12 @@ s.waitForBoot {
         
         activeNotes.remove(tidalNote);
         
-        // Only update Tidal if you are still holding at least one key.
-        // This lets your last chord "ring out" when you lift your hands.
         if(activeNotes.size > 0, {
+            // If you are still holding keys, send the remaining chord
             osc.sendMsg("/ctrl", "keyChord", "[" ++ activeNotes.join(",") ++ "]");
+        }, {
+            // If NO keys are held, send a Tidal rest (~) to stop playback!
+            osc.sendMsg("/ctrl", "keyChord", "~");
         });
     });
 
