@@ -1,0 +1,28 @@
+-- goal is to create sequences that have every now and then longer sequences but same timefeel
+
+setcps 1.1
+
+
+-- timecat with predefined pattern lengths
+
+d1 $ slow 4.5 $ timecat [
+  (1, s "bd sd hh cp"),         -- Cycle 1
+  (1, s "bd sd hh cp"),         -- Cycle 2
+  (1, s "bd sd hh cp"),         -- Cycle 3
+  (1.5, s "bd sd hh cp bd cp")  -- Cycle 4 (Extended to fit 6 notes at the same tempo)
+  ]
+
+d2 $ slow 4.5 $ s "[bd sd hh cp]@1 [bd sd hh cp]@1 [bd sd hh cp]@1 [bd sd hh cp bd cp]@1.5"
+
+
+-- randcat and weighted randcat
+
+let pat1 = "c4 d4 e4 f4"
+    pat2 = "{c4 d4 e4 f4 g4 a4}%4"
+
+d1  $ n (randcat [pat1, pat2]) # s "supersaw"
+
+d1 $ n (wrandcat [
+    (pat1, 8), -- Plays roughly 80% of the time
+    (pat2, 2)  -- Plays roughly 20% of the time
+]) # s "supersaw"

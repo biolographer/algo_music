@@ -1,0 +1,35 @@
+import Sound.Tidal.Context
+-- to match meter with logic add the following to boot.hs
+-- tidal <- startTidal superdirtTarget (defaultConfig {cQuantum = 5, cBeatsPerCycle = 5})
+
+streamEnableLink tidal -- ableton link
+
+
+let tension val = nudge $ (range 0 1 $ slow 16 $ tri) * val -- val ~0.05
+    tensionChunk c val = chunk c (|+ nudge val) -- c = cycle length, val ~0.02
+
+-- play on logic drum machine
+do
+    let bdStruct = "10101  10101":: Pattern Bool
+        sdStruct = inv bdStruct
+    d1 $ slow 1
+       $ tensionChunk 5 0.02
+       $ chunk 4 (jux rev)
+       $ degradeBy 0
+       $ struct bdStruct
+       $ n "c3"
+       # s "logic"
+       # tension 0.07
+    d2 $ slow 1
+       $ chunk 4 (plyWith "2" (# amp 0.24))
+       $ degradeBy 0.2
+       $ struct sdStruct
+       $ n "{d3 [ds4 | ~ fs4 ] [~ e3 , [d3 fs4]]}%5"
+       # s "logic"
+       # tension 0.07
+       # legato (range 0.2 0.1 $ slow 10 sine)
+
+
+d3 $ n "12" # s "logic"
+
+d3 $ silence

@@ -3,18 +3,35 @@
 
 cps (30/60)
 
+let plyVol = ccn 7 # ccv 0.1
+
 -- Logic
 d1 $ jux (rev . off "<0.25 0.125 0.5>" (|+ note "<12 24 7>"))
-   $ arp "<up down>" -- Added Arpeggiation
-   $ every "{4 2}%4" (plyWith 3 (|* gain 0.8))
-   $ note "[c4, e4, g4, b4]"         -- Changed to a Chord [note, note]
+   $ arp "<up down converge>"
+   $ every "{4 }%3" (plyWith "20"(|* amp 0.4))
+   $ note "[c4, e4, g4, b4]"
    # s "logic"
-   # gain 1.4
    # midichan 0
+   # amp  "{0.1 0.4 0.8 0.3 0.2 0.6 0.8}%5"
+   -- # ccn 41 -- The CC number
+   -- # ccv (range 0 90 $ slow 2 sine)
 
-d2 $ note "{c3 e3 g3 b3}%3" # s "logic" # midichan 1
+d1 $ sometimes (plyWith "<1 2 5>" (|* amp "0.2 0.9 0.6?")) $ fast 4 $ arp "{up down}%0.2" $ n "[c4, e4?, g4, b4]" # s "logic" # amp 1
 
-d3 $ s "bd _ 808sd _" # gain 1.5
+d1 $ degradeBy 1 $ plyWith 4 (|* ccv 0.6) $ n "c4" # s "logic" # amp 1 # ccn 7 # ccv 127
+
+
+d2 $ note "{c3 e3 g3 b3}%3" # s "logic" # amp 1 # midichan 1
+
+once $  s "logic"
+     # midichan 1
+     # progNum 2
+
+d1 $ s "logic" # amp 0.9  # ccn 0 # ccv 2 # progNum 1
+
+d3 $ s "bd _ 808sd _" # gain 1
+
+d1 $ s "bd "
 
 -- Control change values for manipulating values of e.g. filters midicmd or ccv/ccn notation
 d1 $ stack [ slow 2 $

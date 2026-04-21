@@ -1,0 +1,15 @@
+-- keyChord
+
+let pat1 =  (ascii "whatever")
+    pat2 = binary 66
+
+pat2
+
+
+d1 $ striate 4 $ arp "diverge" $   n (cP "keyChord") # s "logic" # legato 0.1 # tension 0.04
+
+-- If this works perfectly, you know 100% it was a latency/overlap issue
+d1 $ arp "up down" $ segment 1 $ n (cP "keyChord") # s "logic" # legato 0.1
+
+
+d1 $ s "sd sn"

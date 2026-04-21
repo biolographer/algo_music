@@ -2,13 +2,13 @@ let settleShift tid n maxShift pat = qtrigger tid $ seqP [
         (0, n, shiftAmount ~> pat),
         (n, 9999, pat)
       ]
-      where
-        -- isaw goes from 1 to 0. Slowed down over 'n' cycles.
-        decayEnv    = slow n isaw 
-        -- Creates discrete random steps so events don't fragment
-        randGrid    = segment 16 rand
-        -- Multiplies the decaying envelope by the random values
-        shiftAmount = range 0 maxShift decayEnv * randGrid
+    where
+      -- isaw goes from 1 to 0. Slowed down over 'n' cycles.
+      decayEnv    = slow n isaw
+      -- Creates discrete random steps so events don't fragment
+      randGrid    = segment 16 rand
+      -- Multiplies the decaying envelope by the random values
+      shiftAmount = range 0 maxShift decayEnv * randGrid
 
 -- e.g. d1 $ settleShift 1 4 0.5 (s "bd hh sn hh")
 
@@ -26,20 +26,20 @@ let settleGlitch tid n maxShift pat = qtrigger tid $ seqP [
         (n, 9999, pat)
       ]
       where
-        decayEnv    = slow n isaw 
+        decayEnv    = slow n isaw
         -- Notice the lack of 'segment'. This is continuous noise.
         shiftAmount = range 0 maxShift decayEnv * rand
--- e.g. d1 $ settleGlitch 1 8 0.5 (s "bd ~ sn:2 ~") 
+-- e.g. d1 $ settleGlitch 1 8 0.5 (s "bd ~ sn:2 ~")
 
 let settleNudgeCPS tid n currentCps maxFraction pat = qtrigger tid $ seqP [
         (0, n, pat |+ nudge (range 0 maxNudgeInSeconds decayEnv * rand)),
         (n, 9999, pat)
       ]
-      where 
+      where
         decayEnv          = slow n isaw
         -- Converts the fraction of a cycle into absolute seconds
         maxNudgeInSeconds = maxFraction * (1 / currentCps)
--- e.g. 
+-- e.g.
 -- setcps 1.2
 -- d1 $ settleNudgeCPS 2 8 1.2 0.25 (s "hc(5,8)")
 
@@ -51,6 +51,165 @@ let settleGroupNudge tid cycs maxN pat = qtrigger tid $ seqP [
       where
         -- 1. Do the continuous math (chaos * countdown)
         continuousEnv = range 0 maxN (slow cycs isaw) * rand
-        
+
         -- 2. Freeze the final result exactly once per cycle!
         frozenEnv     = segment 1 continuousEnv
+
+
+-- new functions with qtrigger fixed
+
+-- let settleShift  n maxShift pat =
+--      let decayEnv    = slow n isaw
+--          randGrid    = segment 16 rand
+--          shiftAmount = range 0 maxShift decayEnv * randGrid
+--      in qtrigger $ seqP [(0, n, shiftAmount ~> pat), (n, 9999, pat)]
+
+
+let settleShift n maxShift pat = 
+      let decayEnv    = slow (pure n) isaw
+          randGrid    = segment 16 rand
+          shiftAmount = range 0 maxShift decayEnv * randGrid
+      in qtrigger $ seqP [
+            (0, n, (toRational <$> shiftAmount) ~> pat),
+            (n, 9999, pat)
+         ]
+
+-- Usage: d1 $ settleShift 4 0.5 (s "bd hh sn hh")
+
+let settleNudge n maxNudge pat = 
+      let decayEnv = slow (pure n) isaw
+      in qtrigger $ seqP [
+            (0, n, pat |+ nudge (range 0 maxNudge decayEnv * rand)),
+            (n, 9999, pat)
+         ]
+
+-- Usage: d1 $ settleNudge 8 0.2 (s "bd ~ [~ hh] sn*3")
+
+let settleGlitch n maxShift pat = 
+      let decayEnv    = slow (pure n) isaw
+          shiftAmount = range 0 maxShift decayEnv * rand
+      in qtrigger $ seqP [
+            (0, n, (toRational <$> shiftAmount) ~> pat),
+            (n, 9999, pat)
+         ]
+
+-- Usage: d1 $ settleGlitch 8 0.5 (s "bd ~ sn:2 ~")
+
+let settleNudgeCPS n currentCps maxFraction pat = 
+      let decayEnv          = slow (pure n) isaw
+          maxNudgeInSeconds = maxFraction * (1 / currentCps)
+      in qtrigger $ seqP [
+            (0, n, pat |+ nudge (range 0 maxNudgeInSeconds decayEnv * rand)),
+            (n, 9999, pat)
+         ]
+
+-- Usage: 
+-- setcps 1.2
+-- d1 $ settleNudgeCPS 8 1.2 0.25 (s "hc(5,8)")
+
+let settleGroupNudge cycs maxN pat = 
+      let continuousEnv = range 0 maxN (slow (pure cycs) isaw) * rand
+          frozenEnv     = segment 1 continuousEnv
+      in qtrigger $ seqP [
+            (0, cycs, pat |+ nudge frozenEnv),
+            (cycs, 9999, pat)
+         ]
+
+-- Usage: d1 $ settleGroupNudge 4 0.3 (s "bd*4")
+
+
+
+let settleSpeed n maxVar pat = 
+      let decayEnv = slow (pure n) isaw
+          -- Runging from negative to positive creates pitch bends up and down
+          speedMod = range (-maxVar) maxVar rand * decayEnv
+      in qtrigger $ seqP [
+            (0, n, pat |+ speed speedMod),
+            (n, 9999, pat)
+         ]
+
+-- Usage: maxVar 1 means it will swing wildly between double speed and reverse playback
+-- d1 $ settleSpeed 8 1 (s "amen:0*4" # speed 1)
+
+let settleNote n maxSemitones pat = 
+      let decayEnv = slow (pure n) isaw
+          -- segment 16 freezes the random pitch per 16th note so synths don't constantly slide
+          randGrid = segment 16 (range (-maxSemitones) maxSemitones rand)
+          pitchMod = randGrid * decayEnv
+      in qtrigger $ seqP [
+            (0, n, pat |+ note pitchMod),
+            (n, 9999, pat)
+         ]
+
+-- Usage: maxSemitones 12 means it will randomly jump up to an octave up or down
+-- d1 $ settleNote 8 12 (s "supermandolin*8" # note "c3" # sustain 0.2)
+
+let settleUp n maxSemitones pat = 
+      let decayEnv = slow (pure n) isaw
+          randGrid = segment 16 (range (-maxSemitones) maxSemitones rand)
+          pitchMod = randGrid * decayEnv
+      in qtrigger $ seqP [
+            (0, n, pat |+ up pitchMod),
+            (n, 9999, pat)
+         ]
+
+-- Usage: Scrambles the pitch of the hi-hats wildly, then locks into normal tuning
+-- d1 $ settleUp 4 24 (s "bd ~ [~ hh] sn*3")
+
+let settleCC n targetCC baseVal maxVar pat = 
+      let decayEnv = slow (pure n) isaw
+          -- Calculates the decaying random offset
+          ccMod    = range (-maxVar) maxVar rand * decayEnv
+          -- Adds the offset to your base value
+          dynamicCC = pure baseVal + ccMod
+      in qtrigger $ seqP [
+            (0, n, pat # ccn (pure targetCC) # ccv dynamicCC),
+            (n, 9999, pat # ccn (pure targetCC) # ccv (pure baseVal))
+         ]
+
+-- Usage Example:
+-- Modulating CC number 74 (often Filter Cutoff on many synths).
+-- We want it to settle at a value of 64.
+-- We give it a max variance of 60, meaning at the start it swings wildly between 4 and 124.
+-- d1 $ settleCC 8 74 64 60 (s "midi*8" # note "c3 e3 g3 b3")
+
+
+
+-- ==========================================
+-- STANDARD MIDI CC DEFINITIONS
+-- ==========================================
+
+-- Performance Controls
+let modWheel       = 1
+    breath         = 2
+    footPedal      = 4
+    portamentoTime = 5
+    volume         = 7
+    balance        = 8
+    pan            = 10
+    expression     = 11
+
+-- Switches (Usually 0-63 is OFF, 64-127 is ON)
+let sustainPedal   = 64
+    portamentoOn   = 65
+    sostenutoPedal = 66
+    softPedal      = 67
+    legatoPedal    = 68
+
+-- Sound Shaping (Often mapped to synth parameters)
+let soundVariation = 70
+    resonance      = 71  -- Also called Harmonic Content or Timbre
+    releaseTime    = 72
+    attackTime     = 73
+    cutoff         = 74  -- Also called Brightness
+    decayTime      = 75
+    vibratoRate    = 76
+    vibratoDepth   = 77
+    vibratoDelay   = 78
+
+-- Effects Sends
+let reverb         = 91  -- Reverb send level
+    tremolo        = 92
+    chorus         = 93  -- Chorus send level
+    detune         = 94
+    phaser         = 95
