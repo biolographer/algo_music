@@ -50,7 +50,7 @@ GATE_LENGTH = 0.05
 gate1_opened_at = 0
 gate2_opened_at = 0
 
-print("Computer Class Time-Shift Looper ready!")
+print("Computer Class Time-Shift Looper ready (Pro Routing)!")
 
 while True:
     # IMPORTANT: Update the computer class every cycle to read the multiplexers!
@@ -106,9 +106,11 @@ while True:
             ch1_triggers = get_events_in_window(virtual_last_t_ch1, curr_t_ch1, loop_events, loop_duration)
             if ch1_triggers:
                 p, v = ch1_triggers[-1]
-                # CV 1 & 2 are PWM outputs expecting 16-bit values (0-65535)
-                comp.cv_1_out = int((p / 127) * 65535)
-                comp.cv_2_out = int((v / 127) * 65535)
+                # CH1 Pitch to DAC Channel A (0)
+                comp.dac_write(0, int((p / 127) * 4095))
+                # CH1 Velocity to PWM CV 1
+                comp.cv_1_out = int((v / 127) * 65535)
+                
                 comp.pulse_1_out.value = True
                 gate1_opened_at = last_update_time
                 
@@ -131,9 +133,11 @@ while True:
             ch2_triggers = get_events_in_window(virtual_last_t_ch2, curr_t_ch2, loop_events, loop_duration)
             if ch2_triggers:
                 p, v = ch2_triggers[-1]
-                # DAC outputs are 12-bit, so they expect values from 0 to 4095
-                comp.dac_write(0, int((p / 127) * 4095)) # Pitch
-                comp.dac_write(1, int((v / 127) * 4095)) # Velocity
+                # CH2 Pitch to DAC Channel B (1)
+                comp.dac_write(1, int((p / 127) * 4095))
+                # CH2 Velocity to PWM CV 2
+                comp.cv_2_out = int((v / 127) * 65535)
+                
                 comp.pulse_2_out.value = True
                 gate2_opened_at = last_update_time
                 
@@ -163,14 +167,14 @@ while True:
             if delta > 2.0: delta = 2.0
             last_live_note_time = now
             
-            # Master Out (16-bit PWM)
-            comp.cv_1_out = int((msg.note / 127) * 65535)
-            comp.cv_2_out = int((msg.velocity / 127) * 65535)
+            # Master Out: Pitch (DAC A) & Velocity (CV 1)
+            comp.dac_write(0, int((msg.note / 127) * 4095))
+            comp.cv_1_out = int((msg.velocity / 127) * 65535)
             comp.pulse_1_out.value = True
             
-            # Follower Out (12-bit DAC)
-            comp.dac_write(0, int((msg.note / 127) * 4095))
-            comp.dac_write(1, int((msg.velocity / 127) * 4095))
+            # Follower Out: Pitch (DAC B) & Velocity (CV 2)
+            comp.dac_write(1, int((msg.note / 127) * 4095))
+            comp.cv_2_out = int((msg.velocity / 127) * 65535)
             comp.pulse_2_out.value = True
             
             note_buffer.append((delta, msg.note, msg.velocity))
