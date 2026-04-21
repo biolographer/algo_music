@@ -4,7 +4,9 @@ import adafruit_midi
 import digitalio
 from adafruit_midi.note_on import NoteOn
 from adafruit_midi.note_off import NoteOff
-from mtm_computer import Computer  # Import your provided library
+
+# Import the library, plus the mapping tools and calibration points
+from mtm_computer import Computer, map_range, DACzeroPoint, DAChighPoint 
 
 # --- HELPER FUNCTION: TIMELINE SCANNER ---
 def get_events_in_window(start_t, end_t, events, duration):
@@ -21,11 +23,19 @@ def get_events_in_window(start_t, end_t, events, duration):
                 triggers.append((p, v))
     return triggers
 
+# --- HELPER FUNCTION: 1V/OCTAVE PITCH SCALING ---
+def midi_to_dac(note):
+    # Map MIDI 36 (C2) to 0 Volts (DACzeroPoint)
+    # Map MIDI 96 (C7) to +5 Volts (DAChighPoint) 
+    # This automatically handles the hardware inversion and 1V/Oct scaling!
+    raw_val = map_range(note, 36, 96, DACzeroPoint, DAChighPoint)
+    
+    # Software Safety Clamp: Ensure we never drop below 0 or exceed 4095
+    return max(0, min(4095, int(raw_val)))
+
 # --- 1. HARDWARE SETUP VIA COMPUTER CLASS ---
 comp = Computer()
 
-# The Computer class creates pulse_1_out/pulse_2_out but doesn't set them as outputs.
-# We must explicitly set their direction here so we can use them as Gates.
 comp.pulse_1_out.direction = digitalio.Direction.OUTPUT
 comp.pulse_2_out.direction = digitalio.Direction.OUTPUT
 
@@ -50,19 +60,13 @@ GATE_LENGTH = 0.05
 gate1_opened_at = 0
 gate2_opened_at = 0
 
-print("Computer Class Time-Shift Looper ready (Pro Routing)!")
+print("Computer Class Time-Shift Looper ready (Calibrated Pro Routing)!")
 
 while True:
-    # IMPORTANT: Update the computer class every cycle to read the multiplexers!
     comp.update() 
     
-    # Scale knob_x (0-65535) to 1-30 notes
     n_notes = int((comp.knob_x / 65535) * 29) + 1 
-    
-    # The switch on the Computer reads as an analog value. 
-    # Down is roughly 0, Up is roughly 65535.
     loop_mode_active = comp.switch < 30000 
-    
     now = time.monotonic()
 
     if loop_mode_active:
@@ -106,11 +110,9 @@ while True:
             ch1_triggers = get_events_in_window(virtual_last_t_ch1, curr_t_ch1, loop_events, loop_duration)
             if ch1_triggers:
                 p, v = ch1_triggers[-1]
-                # CH1 Pitch to DAC Channel A (0)
-                comp.dac_write(0, int((p / 127) * 4095))
-                # CH1 Velocity to PWM CV 1
+                # Pitch gets precise DAC conversion, Velocity gets standard 16-bit math
+                comp.dac_write(0, midi_to_dac(p))
                 comp.cv_1_out = int((v / 127) * 65535)
-                
                 comp.pulse_1_out.value = True
                 gate1_opened_at = last_update_time
                 
@@ -133,11 +135,8 @@ while True:
             ch2_triggers = get_events_in_window(virtual_last_t_ch2, curr_t_ch2, loop_events, loop_duration)
             if ch2_triggers:
                 p, v = ch2_triggers[-1]
-                # CH2 Pitch to DAC Channel B (1)
-                comp.dac_write(1, int((p / 127) * 4095))
-                # CH2 Velocity to PWM CV 2
+                comp.dac_write(1, midi_to_dac(p))
                 comp.cv_2_out = int((v / 127) * 65535)
-                
                 comp.pulse_2_out.value = True
                 gate2_opened_at = last_update_time
                 
@@ -167,13 +166,13 @@ while True:
             if delta > 2.0: delta = 2.0
             last_live_note_time = now
             
-            # Master Out: Pitch (DAC A) & Velocity (CV 1)
-            comp.dac_write(0, int((msg.note / 127) * 4095))
+            # Master Live Play
+            comp.dac_write(0, midi_to_dac(msg.note))
             comp.cv_1_out = int((msg.velocity / 127) * 65535)
             comp.pulse_1_out.value = True
             
-            # Follower Out: Pitch (DAC B) & Velocity (CV 2)
-            comp.dac_write(1, int((msg.note / 127) * 4095))
+            # Follower Live Play
+            comp.dac_write(1, midi_to_dac(msg.note))
             comp.cv_2_out = int((msg.velocity / 127) * 65535)
             comp.pulse_2_out.value = True
             
