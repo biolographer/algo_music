@@ -87,14 +87,23 @@ class LooperState:
 # --- CORE OPERATION FUNCTIONS ---
 
 def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
-    """Handles independent sequencer advancement for two playheads"""
+    """Handles independent sequencer advancement with 'Completed Note' logic"""
+    
+    # Check if we have enough notes to perform the offset slice
+    # We need at least (max(n_notes) + 1) to do the -1 offset safely
+    buf_len = len(state.note_buffer)
+
     # --- UPDATE CHANNEL 1 SEQUENCE ---
     if not state.was_in_loop_mode or n_notes_ch1 != state.last_n_notes_ch1:
         state.last_n_notes_ch1 = n_notes_ch1
         state.loop_events_ch1 = []
+
+        if buf_len > n_notes_ch1:
+            seq1 = state.note_buffer[-(n_notes_ch1 + 1):-1]
+        else:
+            seq1 = state.note_buffer[:-1] # Take what we have, minus the active one
+            
         current_t = 0.0
-        # Grab notes from buffer
-        seq1 = state.note_buffer[-n_notes_ch1:] if state.note_buffer else []
         for d, p, v in seq1:
             current_t += d
             state.loop_events_ch1.append((current_t, p, v))
@@ -105,9 +114,13 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
     if not state.was_in_loop_mode or n_notes_ch2 != state.last_n_notes_ch2:
         state.last_n_notes_ch2 = n_notes_ch2
         state.loop_events_ch2 = []
+        
+        if buf_len > n_notes_ch2:
+            seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1]
+        else:
+            seq2 = state.note_buffer[:-1]
+            
         current_t = 0.0
-        # Grab notes from buffer
-        seq2 = state.note_buffer[-n_notes_ch2:] if state.note_buffer else []
         for d, p, v in seq2:
             current_t += d
             state.loop_events_ch2.append((current_t, p, v))
@@ -203,7 +216,8 @@ while True:
     n_notes_ch1 = int((comp.knob_x / 65536) * 11) + 2 
     n_notes_ch2 = int((comp.knob_y / 65536) * 11) + 2 
 
-    loop_mode_active = comp.switch < 30000 
+    sw_val = comp.switch
+    loop_mode_active = (20000 < sw_val < 45000)
 
     # 3. Process Logic
     if loop_mode_active:
