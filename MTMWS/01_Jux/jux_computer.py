@@ -58,13 +58,20 @@ class LooperState:
         self.MAX_BUFFER = 30
         self.note_buffer = []  
         self.was_in_loop_mode = False
-        self.last_n_notes = 0
+        #self.last_n_notes = 0
+        self.last_n_notes_ch1 = 0
+        self.last_n_notes_ch2 = 0
 
         # Timeline variables
-        self.loop_events = []
-        self.loop_duration = 0.1
-        self.max_advance = 0.0
+        #self.loop_events = []
+        self.loop_events_ch1 = []
+        self.loop_events_ch2 = []
+        #self.loop_duration = 0.1
+        self.loop_duration_ch1 = 0.1
+        self.loop_duration_ch2 = 0.1
         self.curr_t_ch1 = 0.0
+        self.curr_t_ch2 = 0.0
+        self.max_advance = 0.0
 
         # Clocks
         now = time.monotonic()
@@ -79,60 +86,56 @@ class LooperState:
 
 # --- CORE OPERATION FUNCTIONS ---
 
-def process_loop_mode(comp, state, n_notes, now):
-    """Handles all sequencer advancement and playback logic"""
-    # 1. State Transition: Entering Loop Mode
-    if not state.was_in_loop_mode or n_notes != state.last_n_notes:
-        state.was_in_loop_mode = True
-        state.last_n_notes = n_notes
-        
-        current_sequence = state.note_buffer[-n_notes:] if state.note_buffer else []
-        state.loop_events = []
+def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
+    """Handles independent sequencer advancement for two playheads"""
+    # --- UPDATE CHANNEL 1 SEQUENCE ---
+    if not state.was_in_loop_mode or n_notes_ch1 != state.last_n_notes_ch1:
+        state.last_n_notes_ch1 = n_notes_ch1
+        state.loop_events_ch1 = []
         current_t = 0.0
-        
-        for d, p, v in current_sequence:
+        # Grab notes from buffer
+        seq1 = state.note_buffer[-n_notes_ch1:] if state.note_buffer else []
+        for d, p, v in seq1:
             current_t += d
-            state.loop_events.append((current_t, p, v))
-            
-        state.loop_duration = current_t if current_t > 0 else 0.1
-        state.max_advance = current_sequence[1][0] if len(current_sequence) > 1 else 0.0
-        state.curr_t_ch1 = state.loop_events[0][0] if state.loop_events else 0.0
-        
-        state.last_seq_step_time = now  
-        virtual_last_t_ch1 = (state.curr_t_ch1 - 0.001) % state.loop_duration
-        dt = 0.001 
-        
-    # 2. Normal Loop Advancement
-    else:
-        dt = now - state.last_seq_step_time
-        state.last_seq_step_time = now
-        virtual_last_t_ch1 = state.curr_t_ch1
-        state.curr_t_ch1 = (state.curr_t_ch1 + dt) % state.loop_duration
-        
-    # 3. Trigger Processing
-    if len(state.loop_events) > 0:
-        # Process Master Channel 1
-        ch1_triggers = get_events_in_window(virtual_last_t_ch1, state.curr_t_ch1, state.loop_events, state.loop_duration)
-        if ch1_triggers:
-            p, v = ch1_triggers[-1]
+            state.loop_events_ch1.append((current_t, p, v))
+        state.loop_duration_ch1 = current_t if current_t > 0 else 0.1
+        state.curr_t_ch1 = 0.0
+
+    # --- UPDATE CHANNEL 2 SEQUENCE ---
+    if not state.was_in_loop_mode or n_notes_ch2 != state.last_n_notes_ch2:
+        state.last_n_notes_ch2 = n_notes_ch2
+        state.loop_events_ch2 = []
+        current_t = 0.0
+        # Grab notes from buffer
+        seq2 = state.note_buffer[-n_notes_ch2:] if state.note_buffer else []
+        for d, p, v in seq2:
+            current_t += d
+            state.loop_events_ch2.append((current_t, p, v))
+        state.loop_duration_ch2 = current_t if current_t > 0 else 0.1
+        state.curr_t_ch2 = 0.0
+
+    state.was_in_loop_mode = True
+
+    # --- TIME ADVANCEMENT ---
+    dt = now - state.last_sesq_step_time
+    state.last_seq_step_time = now
+
+    # --- PROCESS CHANNEL 1 ---
+    if state.loop_events_ch1:
+        v_last_t1 = state.curr_t_ch1
+        state.curr_t_ch1 = (state.curr_t_ch1 + dt) % state.loop_duration_ch1
+        triggers1 = get_events_in_window(v_last_t1, state.curr_t_ch1, state.loop_events_ch1, state.loop_duration_ch1)
+        if triggers1:
+            p, v = triggers1[-1]
             trigger_voice(comp, state, 0, p, v, now)
-            
-        # Calculate Time Shift for Follower
-        pot2_val = comp.knob_main 
-        if pot2_val < 25000:
-            ch2_time_shift = ((25000 - pot2_val) / 25000.0) * state.max_advance
-        elif pot2_val > 40000:
-            ch2_time_shift = - (((pot2_val - 40000) / 25535.0) * 1.0) 
-        else:
-            ch2_time_shift = 0.0
-            
-        # Process Follower Channel 2
-        curr_t_ch2 = (state.curr_t_ch1 + ch2_time_shift) % state.loop_duration
-        virtual_last_t_ch2 = (curr_t_ch2 - dt) % state.loop_duration
-        
-        ch2_triggers = get_events_in_window(virtual_last_t_ch2, curr_t_ch2, state.loop_events, state.loop_duration)
-        if ch2_triggers:
-            p, v = ch2_triggers[-1]
+
+    # --- PROCESS CHANNEL 2 ---
+    if state.loop_events_ch2:
+        v_last_t2 = state.curr_t_ch2
+        state.curr_t_ch2 = (state.curr_t_ch2 + dt) % state.loop_duration_ch2
+        triggers2 = get_events_in_window(v_last_t2, state.curr_t_ch2, state.loop_events_ch2, state.loop_duration_ch2)
+        if triggers2:
+            p, v = triggers2[-1]
             trigger_voice(comp, state, 1, p, v, now)
 
 def process_live_mode(comp, state, midi, now):
@@ -197,13 +200,14 @@ while True:
         state.last_hw_update_time = now
     
     # 2. Read UI state
-    n_notes = int((comp.knob_x / 65536) * 11) + 2
-    
+    n_notes_ch1 = int((comp.knob_x / 65536) * 11) + 2 
+    n_notes_ch2 = int((comp.knob_y / 65536) * 11) + 2 
+
     loop_mode_active = comp.switch < 30000 
 
     # 3. Process Logic
     if loop_mode_active:
-        process_loop_mode(comp, state, n_notes, now)
+        process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now)
     else:
         process_live_mode(comp, state, midi, now)
         
