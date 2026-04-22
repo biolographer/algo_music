@@ -55,9 +55,15 @@ loop_events = []
 loop_duration = 0.1
 max_advance = 0.0
 curr_t_ch1 = 0.0
-last_update_time = 0.0
 
-last_live_note_time = 0
+# === DISTINCT TIME TRACKERS ===
+now = time.monotonic()
+last_hw_update_time = now   # 1. Hardware polling clock
+last_seq_step_time = now    # 2. Sequencer playhead clock
+last_live_note_time = 0     # 3. Live recording clock
+
+HW_UPDATE_INTERVAL = 0.002  # 2ms hardware polling rate
+
 GATE_LENGTH = 0.05    
 gate1_opened_at = 0
 gate2_opened_at = 0
@@ -65,11 +71,17 @@ gate2_opened_at = 0
 print("Computer Class Time-Shift Looper ready (Calibrated Pro Routing)!")
 
 while True:
-    comp.update() 
+    now = time.monotonic()
+
+    # ==========================================
+    # CLOCK 1: HARDWARE POLLING
+    # ==========================================
+    if now - last_hw_update_time >= HW_UPDATE_INTERVAL:
+        comp.update()
+        last_hw_update_time = now
     
     n_notes = int((comp.knob_x / 65535) * 29) + 1 
     loop_mode_active = comp.switch < 30000 
-    now = time.monotonic()
 
     if loop_mode_active:
         # ==========================================
@@ -95,14 +107,20 @@ while True:
                 max_advance = 0.0
                 
             curr_t_ch1 = loop_events[0][0] if loop_events else 0.0
-            last_update_time = now
+            
+            # Reset the sequencer clock when entering loop mode
+            last_seq_step_time = now  
             
             virtual_last_t_ch1 = (curr_t_ch1 - 0.001) % loop_duration
             dt = 0.001 
             
         else:
-            dt = now - last_update_time
-            last_update_time = now
+            # ==========================================
+            # CLOCK 2: SEQUENCER PLAYHEAD ADVANCEMENT
+            # ==========================================
+            dt = now - last_seq_step_time
+            last_seq_step_time = now
+            
             virtual_last_t_ch1 = curr_t_ch1
             curr_t_ch1 = (curr_t_ch1 + dt) % loop_duration
             
@@ -112,11 +130,10 @@ while True:
             ch1_triggers = get_events_in_window(virtual_last_t_ch1, curr_t_ch1, loop_events, loop_duration)
             if ch1_triggers:
                 p, v = ch1_triggers[-1]
-                # Pitch gets precise DAC conversion, Velocity gets standard 16-bit math
                 comp.dac_write(0, midi_to_dac(p))
                 comp.cv_1_out = int((v / 127) * 65535)
                 comp.pulse_1_out.value = True
-                gate1_opened_at = last_update_time
+                gate1_opened_at = now # Set to exact current time, not a past loop time
                 
             # --- CALCULATE BIG KNOB OFFSET ---
             pot2_val = comp.knob_main 
@@ -140,7 +157,7 @@ while True:
                 comp.dac_write(1, midi_to_dac(p))
                 comp.cv_2_out = int((v / 127) * 65535)
                 comp.pulse_2_out.value = True
-                gate2_opened_at = last_update_time
+                gate2_opened_at = now # Set to exact current time
                 
         # Handle Loop-Mode Gate Closing 
         if comp.pulse_1_out.value and (now - gate1_opened_at) >= GATE_LENGTH:
@@ -160,6 +177,10 @@ while True:
         msg = midi.receive()
         
         if isinstance(msg, NoteOn) and msg.velocity > 0:
+            
+            # ==========================================
+            # CLOCK 3: LIVE RECORDING DELTAS
+            # ==========================================
             if last_live_note_time == 0:
                 delta = 0.25 
             else:
