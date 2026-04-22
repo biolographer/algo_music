@@ -37,7 +37,9 @@ def midi_to_dac(note):
 comp = Computer()
 
 comp.pulse_1_out.direction = digitalio.Direction.OUTPUT
+comp.pulse_1_out.value = False
 comp.pulse_2_out.direction = digitalio.Direction.OUTPUT
+comp.pulse_2_out.value = False
 
 midi = adafruit_midi.MIDI(midi_in=usb_midi.ports[0])
 
