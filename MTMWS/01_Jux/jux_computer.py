@@ -98,11 +98,8 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
         state.last_n_notes_ch1 = n_notes_ch1
         state.loop_events_ch1 = []
 
-        if buf_len > n_notes_ch1:
-            seq1 = state.note_buffer[-(n_notes_ch1 + 1):-1]
-        else:
-            seq1 = state.note_buffer[:-1] # Take what we have, minus the active one
-            
+        seq1 = state.note_buffer[-(n_notes_ch1 + 1):-1]
+
         current_t = 0.0
         for d, p, v in seq1:
             current_t += d
@@ -115,10 +112,7 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
         state.last_n_notes_ch2 = n_notes_ch2
         state.loop_events_ch2 = []
         
-        if buf_len > n_notes_ch2:
-            seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1]
-        else:
-            seq2 = state.note_buffer[:-1]
+        seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1]
             
         current_t = 0.0
         for d, p, v in seq2:
@@ -199,7 +193,7 @@ HW_UPDATE_INTERVAL = 0.002
 # Instantiate our state container
 state = LooperState()
 
-print("Computer Class Time-Shift Looper ready (Refactored)!")
+print("Computer Class and Time-Shift Looper ready!")
 
 # ==========================================
 # MAIN LOOP
@@ -216,11 +210,14 @@ while True:
     n_notes_ch1 = int((comp.knob_x / 65536) * 11) + 2 
     n_notes_ch2 = int((comp.knob_y / 65536) * 11) + 2 
 
+    # only go into loop mode if the buffer is full, leave 3 notes as margin for incomplete notes
+    buffer_ready = len(state.note_buffer) > ( max(n_notes_ch1, n_notes_ch2) + 3 )
+
     sw_val = comp.switch
     loop_mode_active = (20000 < sw_val < 45000)
 
     # 3. Process Logic
-    if loop_mode_active:
+    if loop_mode_active and buffer_ready:
         process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now)
     else:
         process_live_mode(comp, state, midi, now)
