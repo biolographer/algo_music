@@ -84,9 +84,14 @@ class LooperState:
         self.gate1_opened_at = 0
         self.gate2_opened_at = 0
 
+        # Switch down tracking
+        self.sw_down_started_at = 0
+        self.last_reverse_ch2 = False
+        self.long_press_triggered = False
+
 # --- CORE OPERATION FUNCTIONS ---
 
-def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
+def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, now):
     """Handles independent sequencer advancement with 'Completed Note' logic"""
     
     # Check if we have enough notes to perform the offset slice
@@ -107,12 +112,17 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now):
         state.loop_duration_ch1 = current_t if current_t > 0 else 0.1
         state.curr_t_ch1 = 0.0
 
-    # --- UPDATE CHANNEL 2 SEQUENCE ---
-    if not state.was_in_loop_mode or n_notes_ch2 != state.last_n_notes_ch2:
+    # --- UPDATE CHANNEL 2 SEQUENCE (Reverse mode enabled) ---
+    if not state.was_in_loop_mode or n_notes_ch2 != state.last_n_notes_ch2 or reverse_ch2 != state.last_reverse:
         state.last_n_notes_ch2 = n_notes_ch2
+        state.last_reverse = reverse_ch2
         state.loop_events_ch2 = []
         
-        seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1]
+        seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1] if buf_len > n_notes_ch2 else state.note_buffer[:-1]
+        
+        # If reverse is active, flip the notes BEFORE calculating the timeline
+        if reverse_ch2:
+            seq2 = list(reversed(seq2))
             
         current_t = 0.0
         for d, p, v in seq2:
@@ -214,11 +224,33 @@ while True:
     buffer_ready = len(state.note_buffer) > ( max(n_notes_ch1, n_notes_ch2) + 3 )
 
     sw_val = comp.switch
-    loop_mode_active = (20000 < sw_val < 45000)
+
+    is_mid = (20000 < sw_val < 45000)
+    is_down = (sw_val < 20000)
+
+    loop_mode_active = (is_mid or is_down) and buffer_ready
+
+    
+    if is_down:
+        if state.sw_down_started_at == 0:
+            state.sw_down_started_at = now
+            state.long_press_triggered = False
+        
+        # Check if held for 0.5s AND we haven't triggered this press yet
+        if (now - state.sw_down_started_at) >= 0.5 and not state.long_press_triggered:
+            state.reverse_ch2 = not state.reverse_ch2  # TOGGLE!
+            state.long_press_triggered = True         # Lock it in so it doesn't flicker
+    else:
+        # Reset timer and trigger flag when switch is released
+        state.sw_down_started_at = 0
+        state.long_press_triggered = False
+
+    # 3. Pass the persistent state to the loop function
+    reverse_to_apply = state.reverse_ch2
 
     # 3. Process Logic
     if loop_mode_active and buffer_ready:
-        process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, now)
+        process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, state.reverse_ch2, now)
     else:
         process_live_mode(comp, state, midi, now)
         
