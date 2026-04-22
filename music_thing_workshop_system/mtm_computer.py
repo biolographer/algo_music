@@ -190,14 +190,28 @@ class Computer:
             self.analog[3] = int(s*self.analog[3] + (1-s)*self.analog_mux2.value)  # CV 2 (inverted)        
 
     def dac_write(self, channel, value):
-        #dac_gain = DAC_config_chan_A_gain if channel == 0 else DAC_config_chan_B_gain 
+        # Prepare the 16-bit word (4 bits config + 12 bits data)
         if channel == 0:
             DAC_data = DAC_config_chan_A_gain | (value & 0xFFF)
         else:
             DAC_data = DAC_config_chan_B_gain | (value & 0xFFF)
 
-        self.dac_spi.write( bytes( (DAC_data >> 8, DAC_data & 0xFF) ) )
-
+        # 1. Lock the bus before writing
+        while not self.dac_spi.try_lock():
+            pass
+        
+        try:
+            # 2. Pull CS LOW to start the SPI transaction
+            self.dac_cs.value = False
+            
+            # 3. Send the two bytes
+            self.dac_spi.write(bytes((DAC_data >> 8, DAC_data & 0xFF)))
+            
+            # 4. Pull CS HIGH to latch the data and update the analog output
+            self.dac_cs.value = True
+        finally:
+            # 5. Always unlock the bus, even if an error occurs
+            self.dac_spi.unlock()
 
     def pulse_outs_to_audio(self, sample_rate=22050, voice_count=5, channel_count=2):
         """Convert the pulse outs to play PWM audio """
