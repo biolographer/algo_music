@@ -197,7 +197,8 @@ while True:
         state.last_hw_update_time = now
     
     # 2. Read UI state
-    n_notes = int((comp.knob_x / 65535) * 29) + 1 
+    n_notes = int((comp.knob_x / 65536) * 11) + 2
+    
     loop_mode_active = comp.switch < 30000 
 
     # 3. Process Logic
