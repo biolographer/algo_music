@@ -16,9 +16,13 @@
 - [x] Chord handling
 - [x] Midi note off message controls note and pulse length
 - [x] Midi clock
-- [ ] check what happens if no clock is received
-- [ ] Make it go such note 1 can maximally be shifted to note N of a pattern length N
-- [ ] Audio/CV to MIDI conversion so audio inptus can give sequence
+- [x] check what happens if no clock is received
+- [x] Big knob time-shift
+- [x] Make it go such note 1 can maximally be shifted to note N of a pattern length N
+- [ ] Audio/CV to MIDI conversion so audio inptus can give sequence?
+    - [ ] FFT?
+    - [ ] Time-domain analysis: Autocorrelation and Zero crossing?
+    - [ ] CircuitPython ulab
 - [ ] control time offset with LFO
 - [ ] 
 

@@ -1,9 +1,11 @@
 # --- NOTES ---
 #
 # THIS IS A REFACTORED VERSION OF midi_loop_timeshift+Computer.py
-# it implements the looper as a class with NoteOff duration tracking
-# and a chord filter for monophonic priority.
-# Implements midi clock
+# 
+# NEW FEATURES:
+# - Tick-Based Timeline for perfect Ableton/Logic Pro MIDI Clock sync.
+# - Auto-fallback to internal clock if no USB clock is present.
+# - Big Knob Bi-Polar Control: CCW = Phase Shift, CW = 2x Speed Up.
 #
 # --- ----- ---
 
@@ -72,8 +74,8 @@ class LooperState:
         self.loop_events_ch2 = []
         self.loop_duration_ch1 = 24
         self.loop_duration_ch2 = 24
-        self.curr_t_ch1 = 0
-        self.curr_t_ch2 = 0
+        self.curr_t_ch1 = 0.0
+        self.curr_t_ch2 = 0.0 # Float to allow fractional tick speeds
 
         # Clock sync
         self.global_tick_count = 0
@@ -99,8 +101,8 @@ class LooperState:
 
 # --- CORE OPERATION FUNCTIONS ---
 
-def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2):
-    """Handles independent sequencer advancement based on global clock ticks"""
+def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_offset_percent, ch2_speed):
+    """Handles independent sequencer advancement with offsets and multipliers"""
     
     buf_len = len(state.note_buffer)
 
@@ -115,7 +117,7 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2):
             current_t += d
             state.loop_events_ch1.append((current_t, p, v, dur))
         state.loop_duration_ch1 = current_t if current_t > 0 else 24
-        state.curr_t_ch1 = 0
+        state.curr_t_ch1 = 0.0
 
     if not state.was_in_loop_mode or n_notes_ch2 != state.last_n_notes_ch2 or reverse_ch2 != state.last_reverse:
         state.last_n_notes_ch2 = n_notes_ch2
@@ -131,7 +133,7 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2):
             current_t += d
             state.loop_events_ch2.append((current_t, p, v, dur))
         state.loop_duration_ch2 = current_t if current_t > 0 else 24
-        state.curr_t_ch2 = 0
+        state.curr_t_ch2 = 0.0
 
     # Reset step tracker if we just flipped the switch to prevent massive time jumps
     if not state.was_in_loop_mode:
@@ -153,14 +155,27 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2):
                 trigger_voice(comp, 0, p, v)
                 state.gate1_close_tick = state.global_tick_count + dur
 
-        # --- PROCESS CHANNEL 2 ---
+        # --- PROCESS CHANNEL 2 (With Speed and Offset modifiers) ---
         if state.loop_events_ch2:
-            v_last_t2 = state.curr_t_ch2
-            state.curr_t_ch2 = (state.curr_t_ch2 + dt_ticks) % state.loop_duration_ch2
-            triggers2 = get_events_in_window(v_last_t2, state.curr_t_ch2, state.loop_events_ch2, state.loop_duration_ch2)
+            # Advance base timeline by the speed multiplier
+            base_last_t2 = state.curr_t_ch2
+            state.curr_t_ch2 = (state.curr_t_ch2 + (dt_ticks * ch2_speed)) % state.loop_duration_ch2
+            
+            # Apply the phase offset just for reading the triggers
+            offset_ticks = state.loop_duration_ch2 * ch2_offset_percent
+
+            # change to this if it should scrub along channel 1 pattern instead 
+            #offset_ticks = state.loop_duration_ch1 * ch2_offset_percent
+            
+            actual_last_t2 = (base_last_t2 + offset_ticks) % state.loop_duration_ch2
+            actual_curr_t2 = (state.curr_t_ch2 + offset_ticks) % state.loop_duration_ch2
+            
+            triggers2 = get_events_in_window(actual_last_t2, actual_curr_t2, state.loop_events_ch2, state.loop_duration_ch2)
             for p, v, dur in triggers2:
                 trigger_voice(comp, 1, p, v)
-                state.gate2_close_tick = state.global_tick_count + dur
+                # Shorten the gate length if we are playing faster!
+                adjusted_dur = dur / ch2_speed
+                state.gate2_close_tick = state.global_tick_count + adjusted_dur
 
 def handle_live_notes(comp, state, msg):
     """Handles MIDI pass-through, recording, chords, and legatos"""
@@ -248,6 +263,19 @@ while True:
     n_notes_ch2 = int((comp.knob_y / 65536) * 11) + 2 
     buffer_ready = len(state.note_buffer) > (max(n_notes_ch1, n_notes_ch2) + 3)
     
+    # --- BIG KNOB LOGIC (Phase Offset & Speed) ---
+    main_val = comp.knob_main
+    ch2_offset_percent = 0.0
+    ch2_speed = 1.0
+
+    if main_val < 30000:
+        # Left side: Map 30000 (center) down to 0 (CCW) -> 0% to 100% Phase Offset
+        ch2_offset_percent = (30000 - main_val) / 30000.0
+    elif main_val > 35000:
+        # Right side: Map 35000 (center) up to 65535 (CW) -> 1.0x to 2.0x Speed
+        ch2_speed = 1.0 + ((main_val - 35000) / 30535.0)
+    # Inside 30000 - 35000 dead zone: values default to 0.0 and 1.0.
+
     sw_val = comp.switch
     is_mid = (20000 < sw_val < 45000)
     is_down = (sw_val < 20000)
@@ -291,7 +319,8 @@ while True:
 
     # 5. Process Loop Logic
     if loop_mode_active:
-        process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, state.reverse_ch2)
+        # Pass our new modifiers into the looper function
+        process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, state.reverse_ch2, ch2_offset_percent, ch2_speed)
         
-    # 6. Gate Timeouts (based on ticks)
+    # 6. Gate Timeouts
     check_gate_timeouts(comp, state)
