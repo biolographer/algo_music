@@ -281,15 +281,30 @@ while True:
     is_down = (sw_val < 20000)
     loop_mode_active = (is_mid or is_down) and buffer_ready
 
-    # Handle Reverse Latch
+    # Handle Reverse Latch & Quick Flick Sync
     if is_down:
         if state.sw_down_started_at == 0:
             state.sw_down_started_at = now
             state.long_press_triggered = False
+            
+        # Trigger REVERSE if held longer than 0.5s
         if (now - state.sw_down_started_at) >= LATCH_TIME and not state.long_press_triggered:
             state.reverse_ch2 = not state.reverse_ch2  
             state.long_press_triggered = True         
     else:
+        # The switch has just been released. Let's see what happened:
+        if state.sw_down_started_at > 0:
+            held_time = now - state.sw_down_started_at
+            
+            # If it was released BEFORE the reverse triggered hard reset the pattern sync
+            if held_time < LATCH_TIME and not state.long_press_triggered:
+                print("Quick Flick: Channel 2 Synced!")
+                if state.loop_duration_ch2 > 0:
+                    state.curr_t_ch2 = state.curr_t_ch1 % state.loop_duration_ch2
+                else:
+                    state.curr_t_ch2 = 0.0
+                    
+        # Reset tracking variables
         state.sw_down_started_at = 0
         state.long_press_triggered = False
 
