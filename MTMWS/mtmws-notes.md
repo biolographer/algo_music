@@ -19,12 +19,13 @@
 - [x] check what happens if no clock is received
 - [x] Big knob time-shift
 - [x] Make it go such note 1 can maximally be shifted to note N of a pattern length N
+- [x] Consider phase slipping reset when toggle is flicked  
+- [x] No pattern restart when X/Y knobs are turned, instead wait for pattern to end
+- [ ] control time offset with LFO
 - [ ] Audio/CV to MIDI conversion so audio inptus can give sequence?
     - [ ] FFT?
     - [ ] Time-domain analysis: Autocorrelation and Zero crossing?
     - [ ] CircuitPython ulab
-- [ ] control time offset with LFO
-- [ ] 
 
 ## Jux audio
 - Record incoming audio stream

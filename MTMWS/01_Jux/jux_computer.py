@@ -106,12 +106,15 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
     
     buf_len = len(state.note_buffer)
 
-    # --- UPDATE SEQUENCES (Triggered on switch flip or knob turn) ---
-    if not state.was_in_loop_mode or n_notes_ch1 != state.last_n_notes_ch1:
+    # --- 1. INITIAL BUILD (Triggered ONLY when flipping the switch to Loop Mode) ---
+    if not state.was_in_loop_mode:
+        state.last_seq_step_tick = state.global_tick_count
+        state.was_in_loop_mode = True
+
+        # Build Channel 1
         state.last_n_notes_ch1 = n_notes_ch1
         state.loop_events_ch1 = []
         seq1 = state.note_buffer[-(n_notes_ch1 + 1):-1]
-
         current_t = 0
         for d, p, v, dur in seq1:
             current_t += d
@@ -119,15 +122,13 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
         state.loop_duration_ch1 = current_t if current_t > 0 else 24
         state.curr_t_ch1 = 0.0
 
-    if not state.was_in_loop_mode or n_notes_ch2 != state.last_n_notes_ch2 or reverse_ch2 != state.last_reverse:
+        # Build Channel 2
         state.last_n_notes_ch2 = n_notes_ch2
         state.last_reverse = reverse_ch2
         state.loop_events_ch2 = []
-        
         seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1] if buf_len > n_notes_ch2 else state.note_buffer[:-1]
         if reverse_ch2:
             seq2 = list(reversed(seq2))
-            
         current_t = 0
         for d, p, v, dur in seq2:
             current_t += d
@@ -135,13 +136,7 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
         state.loop_duration_ch2 = current_t if current_t > 0 else 24
         state.curr_t_ch2 = 0.0
 
-    # Reset step tracker if we just flipped the switch to prevent massive time jumps
-    if not state.was_in_loop_mode:
-        state.last_seq_step_tick = state.global_tick_count
-        
-    state.was_in_loop_mode = True
-
-    # --- TIME ADVANCEMENT ---
+    # --- 2. TIME ADVANCEMENT ---
     dt_ticks = state.global_tick_count - state.last_seq_step_tick
     state.last_seq_step_tick = state.global_tick_count
 
@@ -150,10 +145,23 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
         if state.loop_events_ch1:
             v_last_t1 = state.curr_t_ch1
             state.curr_t_ch1 = (state.curr_t_ch1 + dt_ticks) % state.loop_duration_ch1
+            
             triggers1 = get_events_in_window(v_last_t1, state.curr_t_ch1, state.loop_events_ch1, state.loop_duration_ch1)
             for p, v, dur in triggers1:
                 trigger_voice(comp, 0, p, v)
                 state.gate1_close_tick = state.global_tick_count + dur
+
+            # --- DEFERRED UPDATE (Quantized Pattern Change) ---
+            if state.curr_t_ch1 < v_last_t1:
+                if n_notes_ch1 != state.last_n_notes_ch1:
+                    state.last_n_notes_ch1 = n_notes_ch1
+                    state.loop_events_ch1 = []
+                    seq1 = state.note_buffer[-(n_notes_ch1 + 1):-1]
+                    current_t = 0
+                    for d, p, v, dur in seq1:
+                        current_t += d
+                        state.loop_events_ch1.append((current_t, p, v, dur))
+                    state.loop_duration_ch1 = current_t if current_t > 0 else 24
 
         # --- PROCESS CHANNEL 2 (With Speed and Offset modifiers) ---
         if state.loop_events_ch2:
@@ -176,6 +184,21 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
                 # Shorten the gate length if we are playing faster!
                 adjusted_dur = dur / ch2_speed
                 state.gate2_close_tick = state.global_tick_count + adjusted_dur
+
+            # --- DEFERRED UPDATE (Quantized Pattern Change) ---
+            if state.curr_t_ch2 < base_last_t2:
+                if n_notes_ch2 != state.last_n_notes_ch2 or reverse_ch2 != state.last_reverse:
+                    state.last_n_notes_ch2 = n_notes_ch2
+                    state.last_reverse = reverse_ch2
+                    state.loop_events_ch2 = []
+                    seq2 = state.note_buffer[-(n_notes_ch2 + 1):-1] if buf_len > n_notes_ch2 else state.note_buffer[:-1]
+                    if reverse_ch2:
+                        seq2 = list(reversed(seq2))
+                    current_t = 0
+                    for d, p, v, dur in seq2:
+                        current_t += d
+                        state.loop_events_ch2.append((current_t, p, v, dur))
+                    state.loop_duration_ch2 = current_t if current_t > 0 else 24
 
 def handle_live_notes(comp, state, msg):
     """Handles MIDI pass-through, recording, chords, and legatos"""
