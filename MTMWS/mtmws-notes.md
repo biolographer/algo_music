@@ -11,7 +11,7 @@
     - Up: live mode, MIDI notes pass through
     - Middle: grab the notes from the buffer, repeat in a loop of lengths set by knob X and Y
     - Down toggle: Reverse the order of the notes in the Channel2 buffer
-    
+
 ### ToDo
 - [x] Chord handling
 - [x] Midi note off message controls note and pulse length
@@ -32,3 +32,4 @@
 - Inspiration: 
     - 11_goldfish card
     - Utility_pair (https://github.com/chrisgjohnson/Utility-Pair/)
+    - RYK card (commercial, code not published)
