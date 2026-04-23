@@ -7,11 +7,20 @@
     - between 2-12 notes
     - 6 LED's can indicate the number (in binary for fun or just 2-6 and then another 2-6 when pot is moved past 12 o'clock)
 - Big knob controls time shift between midi notes
-    - [ ] Make it go such note 1 can maximally be shifted to note N of a pattern length N
 - Switch
     - Up: live mode, MIDI notes pass through
     - Middle: grab the notes from the buffer, repeat in a loop of lengths set by knob X and Y
     - Down toggle: Reverse the order of the notes in the Channel2 buffer
+    
+### ToDo
+- [x] Chord handling
+- [x] Midi note off message controls note and pulse length
+- [x] Midi clock
+- [ ] check what happens if no clock is received
+- [ ] Make it go such note 1 can maximally be shifted to note N of a pattern length N
+- [ ] Audio/CV to MIDI conversion so audio inptus can give sequence
+- [ ] control time offset with LFO
+- [ ] 
 
 ## Jux audio
 - Record incoming audio stream
