@@ -4,17 +4,25 @@
 #include "ComputerCard.h"
 #include "pico/util/queue.h"
 #include <stdint.h>
-#include <cmath>
 
-// 1. Move the struct here so both main.cpp and the class can see it
+// 1. Struct for Core 0 to Core 1 communication
 struct MIDIMessage {
     uint8_t status;
     uint8_t data1;
     uint8_t data2;
 };
 
-// 2. Declare the queue as extern AT GLOBAL SCOPE (outside the class)
+// 2. Declare the queue as extern AT GLOBAL SCOPE
 extern queue_t midi_queue;
+
+// --- FIXED-POINT MATH HELPERS ---
+// We use Q16.16 format. 1.0 (or 1 whole tick) = 65536.
+#define Q16_ONE 65536
+static inline uint32_t IntToQ16(uint32_t x) { return x << 16; }
+static inline uint32_t Q16ToInt(uint32_t x) { return x >> 16; }
+static inline uint32_t MulQ16(uint32_t a_Q16, uint32_t b_Q16) {
+    return (uint32_t)(((uint64_t)a_Q16 * (uint64_t)b_Q16) >> 16);
+}
 
 // --- HELPER STRUCTS ---
 struct NoteEvent {
@@ -25,18 +33,18 @@ struct NoteEvent {
 };
 
 struct LoopEvent {
-    float t;
+    uint32_t t_Q16;        // Tracked in Fixed-Point
     uint8_t note;
     uint8_t velocity;
-    uint32_t duration;
+    uint32_t duration_Q16; // Tracked in Fixed-Point
 };
 
 // --- CORE LOOPER CLASS ---
 class TimeshiftLooper : public ComputerCard {
 public:
     static constexpr int MAX_BUFFER = 30;
-    static constexpr uint32_t LATCH_SAMPLES = 24000; // 0.5 seconds @ 48kHz
-    static constexpr uint32_t INTERNAL_TICK_SAMPLES = 1000; // ~120 BPM at 24 PPQN
+    static constexpr uint32_t LATCH_SAMPLES = 24000; 
+    static constexpr uint32_t INTERNAL_TICK_SAMPLES = 1000; 
 
     // State Variables
     NoteEvent note_buffer[MAX_BUFFER];
@@ -46,16 +54,16 @@ public:
     int last_n_notes_ch1 = 0;
     int last_n_notes_ch2 = 0;
 
-    // Timeline Variables
+    // Timeline Variables (All strictly integer/fixed-point now)
     LoopEvent loop_events_ch1[MAX_BUFFER];
     int num_events_ch1 = 0;
-    float loop_duration_ch1 = 24.0f;
-    float curr_t_ch1 = 0.0f;
+    uint32_t loop_duration_ch1_Q16 = IntToQ16(24);
+    uint32_t curr_t_ch1_Q16 = 0;
 
     LoopEvent loop_events_ch2[MAX_BUFFER];
     int num_events_ch2 = 0;
-    float loop_duration_ch2 = 24.0f;
-    float curr_t_ch2 = 0.0f;
+    uint32_t loop_duration_ch2_Q16 = IntToQ16(24);
+    uint32_t curr_t_ch2_Q16 = 0;
 
     // Clock and Tracking
     volatile uint32_t global_tick_count = 0;
@@ -63,7 +71,7 @@ public:
     uint32_t internal_sample_counter = 0;
     
     uint32_t last_seq_step_tick = 0;
-    uint32_t last_live_note_tick = 0xFFFFFFFF; // Equivalent to -1
+    uint32_t last_live_note_tick = 0xFFFFFFFF; 
 
     int active_live_note = -1;
     uint32_t active_note_start_tick = 0;
@@ -181,15 +189,15 @@ protected:
         int max_req = (n_notes_ch1 > n_notes_ch2) ? n_notes_ch1 : n_notes_ch2;
         bool buffer_ready = (buffer_count > (max_req + 3));
 
-        // 4. Big Knob Logic (Phase vs Speed)
-        int main_val = KnobVal(Knob::Main); // 0 - 4095
-        float ch2_offset_percent = 0.0f;
-        float ch2_speed = 1.0f;
+        // 4. Big Knob Logic -> Converted to Q16 math!
+        int main_val = KnobVal(Knob::Main); 
+        uint32_t ch2_offset_percent_Q16 = 0;
+        uint32_t ch2_speed_Q16 = Q16_ONE; // Default 1.0x speed
 
         if (main_val < 1875) {
-            ch2_offset_percent = (1875.0f - main_val) / 1875.0f;
+            ch2_offset_percent_Q16 = ((1875 - main_val) * Q16_ONE) / 1875;
         } else if (main_val > 2187) {
-            ch2_speed = 1.0f + ((main_val - 2187) / 1908.0f);
+            ch2_speed_Q16 = Q16_ONE + (((main_val - 2187) * Q16_ONE) / 1908);
         }
 
         // 5. Switch Logic (Latch & Sync)
@@ -207,11 +215,11 @@ protected:
         } else {
             if (sw_down_samples > 0) {
                 if (sw_down_samples < LATCH_SAMPLES && !long_press_triggered) {
-                    // Quick Flick: Sync Timelines
-                    if (loop_duration_ch2 > 0) {
-                        curr_t_ch2 = fmod(curr_t_ch1, loop_duration_ch2);
+                    if (loop_duration_ch2_Q16 > 0) {
+                        // Integer modulo replaces fmod!
+                        curr_t_ch2_Q16 = curr_t_ch1_Q16 % loop_duration_ch2_Q16;
                     } else {
-                        curr_t_ch2 = 0.0f;
+                        curr_t_ch2_Q16 = 0;
                     }
                 }
             }
@@ -221,7 +229,7 @@ protected:
 
         // 6. Run Sequencer
         if (loop_mode_active) {
-            ProcessLoopMode(n_notes_ch1, n_notes_ch2, ch2_offset_percent, ch2_speed);
+            ProcessLoopMode(n_notes_ch1, n_notes_ch2, ch2_offset_percent_Q16, ch2_speed_Q16);
         }
 
         // 7. Check Gate Timeouts
@@ -249,9 +257,9 @@ private:
         }
     }
 
-    void BuildTimeline(int n_notes, bool reverse, LoopEvent* events, int& num_events, float& duration) {
+    void BuildTimeline(int n_notes, bool reverse, LoopEvent* events, int& num_events, uint32_t& duration_Q16) {
         num_events = 0;
-        float current_t = 0;
+        uint32_t current_t_Q16 = 0;
         
         int start_idx = buffer_count - n_notes - 1;
         if (start_idx < 0) start_idx = 0;
@@ -259,59 +267,65 @@ private:
 
         if (!reverse) {
             for (int i = start_idx; i < end_idx; i++) {
-                current_t += note_buffer[i].delta_ticks;
-                events[num_events++] = {current_t, note_buffer[i].note, note_buffer[i].velocity, note_buffer[i].duration_ticks};
+                current_t_Q16 += IntToQ16(note_buffer[i].delta_ticks);
+                events[num_events++] = {current_t_Q16, note_buffer[i].note, note_buffer[i].velocity, IntToQ16(note_buffer[i].duration_ticks)};
             }
         } else {
             // Reverse extraction
             for (int i = end_idx - 1; i >= start_idx; i--) {
-                current_t += note_buffer[i].delta_ticks;
-                events[num_events++] = {current_t, note_buffer[i].note, note_buffer[i].velocity, note_buffer[i].duration_ticks};
+                current_t_Q16 += IntToQ16(note_buffer[i].delta_ticks);
+                events[num_events++] = {current_t_Q16, note_buffer[i].note, note_buffer[i].velocity, IntToQ16(note_buffer[i].duration_ticks)};
             }
         }
-        duration = (current_t > 0) ? current_t : 24.0f;
+        duration_Q16 = (current_t_Q16 > 0) ? current_t_Q16 : IntToQ16(24);
     }
 
-    void CheckTriggers(float start_t, float end_t, LoopEvent* events, int num_events, float duration, int channel, float speed) {
-        if (start_t < end_t) {
+    void CheckTriggers(uint32_t start_t_Q16, uint32_t end_t_Q16, LoopEvent* events, int num_events, uint32_t duration_Q16, int channel, uint32_t speed_Q16) {
+        if (start_t_Q16 < end_t_Q16) {
             for (int i = 0; i < num_events; i++) {
-                if (events[i].t > start_t && events[i].t <= end_t) {
-                    FireEvent(channel, events[i], speed);
+                if (events[i].t_Q16 > start_t_Q16 && events[i].t_Q16 <= end_t_Q16) {
+                    FireEvent(channel, events[i], speed_Q16);
                 }
             }
         } else {
             // Wrap-around boundary
             for (int i = 0; i < num_events; i++) {
-                if (events[i].t > start_t && events[i].t <= duration) {
-                    FireEvent(channel, events[i], speed);
+                if (events[i].t_Q16 > start_t_Q16 && events[i].t_Q16 <= duration_Q16) {
+                    FireEvent(channel, events[i], speed_Q16);
                 }
-                if (events[i].t >= 0 && events[i].t <= end_t) {
-                    FireEvent(channel, events[i], speed);
+                if (events[i].t_Q16 <= end_t_Q16) {
+                    FireEvent(channel, events[i], speed_Q16);
                 }
             }
         }
     }
 
-    void FireEvent(int channel, const LoopEvent& ev, float speed) {
+    void FireEvent(int channel, const LoopEvent& ev, uint32_t speed_Q16) {
         TriggerVoice(channel, ev.note, ev.velocity);
-        uint32_t adj_dur = ev.duration / speed;
-        if (channel == 0) gate1_close_tick = global_tick_count + adj_dur;
-        if (channel == 1) gate2_close_tick = global_tick_count + adj_dur;
+        
+        // Calculate adjusted duration: (duration / speed)
+        // Since both are Q16, we do: (duration_Q16 << 16) / speed_Q16 to maintain scale, 
+        // then shift down to standard integer ticks.
+        uint32_t adj_dur_ticks = (uint32_t)(((uint64_t)ev.duration_Q16 << 16) / speed_Q16) >> 16;
+        if (adj_dur_ticks == 0) adj_dur_ticks = 1; // Minimum 1 tick gate
+
+        if (channel == 0) gate1_close_tick = global_tick_count + adj_dur_ticks;
+        if (channel == 1) gate2_close_tick = global_tick_count + adj_dur_ticks;
     }
 
-    void ProcessLoopMode(int n_notes_ch1, int n_notes_ch2, float ch2_offset_percent, float ch2_speed) {
+    void ProcessLoopMode(int n_notes_ch1, int n_notes_ch2, uint32_t ch2_offset_percent_Q16, uint32_t ch2_speed_Q16) {
         if (!was_in_loop_mode) {
             last_seq_step_tick = global_tick_count;
             was_in_loop_mode = true;
 
             last_n_notes_ch1 = n_notes_ch1;
-            BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1);
-            curr_t_ch1 = 0.0f;
+            BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16);
+            curr_t_ch1_Q16 = 0;
 
             last_n_notes_ch2 = n_notes_ch2;
             last_reverse = reverse_ch2;
-            BuildTimeline(n_notes_ch2, reverse_ch2, loop_events_ch2, num_events_ch2, loop_duration_ch2);
-            curr_t_ch2 = 0.0f;
+            BuildTimeline(n_notes_ch2, reverse_ch2, loop_events_ch2, num_events_ch2, loop_duration_ch2_Q16);
+            curr_t_ch2_Q16 = 0;
         }
 
         int dt_ticks = global_tick_count - last_seq_step_tick;
@@ -320,34 +334,36 @@ private:
         if (dt_ticks > 0) {
             // --- CHANNEL 1 ---
             if (num_events_ch1 > 0) {
-                float v_last_t1 = curr_t_ch1;
-                curr_t_ch1 = fmod((curr_t_ch1 + dt_ticks), loop_duration_ch1);
+                uint32_t v_last_t1_Q16 = curr_t_ch1_Q16;
+                // Standard modulo!
+                curr_t_ch1_Q16 = (curr_t_ch1_Q16 + IntToQ16(dt_ticks)) % loop_duration_ch1_Q16;
                 
-                CheckTriggers(v_last_t1, curr_t_ch1, loop_events_ch1, num_events_ch1, loop_duration_ch1, 0, 1.0f);
+                CheckTriggers(v_last_t1_Q16, curr_t_ch1_Q16, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16, 0, Q16_ONE);
 
-                // Rebuild boundary
-                if (curr_t_ch1 < v_last_t1 && n_notes_ch1 != last_n_notes_ch1) {
+                if (curr_t_ch1_Q16 < v_last_t1_Q16 && n_notes_ch1 != last_n_notes_ch1) {
                     last_n_notes_ch1 = n_notes_ch1;
-                    BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1);
+                    BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16);
                 }
             }
 
             // --- CHANNEL 2 ---
             if (num_events_ch2 > 0) {
-                float base_last_t2 = curr_t_ch2;
-                curr_t_ch2 = fmod((curr_t_ch2 + (dt_ticks * ch2_speed)), loop_duration_ch2);
+                uint32_t base_last_t2_Q16 = curr_t_ch2_Q16;
                 
-                float offset_ticks = loop_duration_ch2 * ch2_offset_percent;
-                float actual_last_t2 = fmod((base_last_t2 + offset_ticks), loop_duration_ch2);
-                float actual_curr_t2 = fmod((curr_t_ch2 + offset_ticks), loop_duration_ch2);
+                // dt_ticks * speed_Q16 natively results in Q16 scale
+                uint32_t advanced_ticks_Q16 = dt_ticks * ch2_speed_Q16;
+                curr_t_ch2_Q16 = (curr_t_ch2_Q16 + advanced_ticks_Q16) % loop_duration_ch2_Q16;
+                
+                uint32_t offset_ticks_Q16 = MulQ16(loop_duration_ch2_Q16, ch2_offset_percent_Q16);
+                uint32_t actual_last_t2_Q16 = (base_last_t2_Q16 + offset_ticks_Q16) % loop_duration_ch2_Q16;
+                uint32_t actual_curr_t2_Q16 = (curr_t_ch2_Q16 + offset_ticks_Q16) % loop_duration_ch2_Q16;
 
-                CheckTriggers(actual_last_t2, actual_curr_t2, loop_events_ch2, num_events_ch2, loop_duration_ch2, 1, ch2_speed);
+                CheckTriggers(actual_last_t2_Q16, actual_curr_t2_Q16, loop_events_ch2, num_events_ch2, loop_duration_ch2_Q16, 1, ch2_speed_Q16);
 
-                // Rebuild boundary
-                if (curr_t_ch2 < base_last_t2 && (n_notes_ch2 != last_n_notes_ch2 || reverse_ch2 != last_reverse)) {
+                if (curr_t_ch2_Q16 < base_last_t2_Q16 && (n_notes_ch2 != last_n_notes_ch2 || reverse_ch2 != last_reverse)) {
                     last_n_notes_ch2 = n_notes_ch2;
                     last_reverse = reverse_ch2;
-                    BuildTimeline(n_notes_ch2, reverse_ch2, loop_events_ch2, num_events_ch2, loop_duration_ch2);
+                    BuildTimeline(n_notes_ch2, reverse_ch2, loop_events_ch2, num_events_ch2, loop_duration_ch2_Q16);
                 }
             }
         }
@@ -355,8 +371,8 @@ private:
 
     void TriggerVoice(int channel, uint8_t note, uint8_t velocity) {
         if (channel == 0) {
-            CVOut1MIDINote(note); // Automatically uses EEPROM calibration to spit out V/Oct
-            AudioOut1((velocity * 2047) / 127); // Map 0-127 MIDI to DC-coupled Audio Out 
+            CVOut1MIDINote(note); 
+            AudioOut1((velocity * 2047) / 127); 
             PulseOut1(true);
             gate1_active = true;
         } else {
