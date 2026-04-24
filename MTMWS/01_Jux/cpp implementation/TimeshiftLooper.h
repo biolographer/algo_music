@@ -16,7 +16,6 @@ struct MIDIMessage {
 extern queue_t midi_queue;
 
 // --- FIXED-POINT MATH HELPERS ---
-// We use Q16.16 format. 1.0 (or 1 whole tick) = 65536.
 #define Q16_ONE 65536
 static inline uint32_t IntToQ16(uint32_t x) { return x << 16; }
 static inline uint32_t Q16ToInt(uint32_t x) { return x >> 16; }
@@ -33,10 +32,10 @@ struct NoteEvent {
 };
 
 struct LoopEvent {
-    uint32_t t_Q16;        // Tracked in Fixed-Point
+    uint32_t t_Q16;
     uint8_t note;
     uint8_t velocity;
-    uint32_t duration_Q16; // Tracked in Fixed-Point
+    uint32_t duration_Q16;
 };
 
 // --- CORE LOOPER CLASS ---
@@ -50,11 +49,15 @@ public:
     NoteEvent note_buffer[MAX_BUFFER];
     int buffer_count = 0;
 
+    // Physical Input Tracking
+    bool last_pulse_gate = false;
+    uint8_t last_cv_note = 0;
+
     bool was_in_loop_mode = false;
     int last_n_notes_ch1 = 0;
     int last_n_notes_ch2 = 0;
 
-    // Timeline Variables (All strictly integer/fixed-point now)
+    // Timeline Variables
     LoopEvent loop_events_ch1[MAX_BUFFER];
     int num_events_ch1 = 0;
     uint32_t loop_duration_ch1_Q16 = IntToQ16(24);
@@ -86,11 +89,6 @@ public:
     bool reverse_ch2 = false;
     bool last_reverse = false;
     bool long_press_triggered = false;
-
-    // NOT NEEDED?
-    //TimeshiftLooper() {
-    //    UpdateControls();
-    //}
 
     // --- MIDI INGESTION ---
     void HandleMIDIClock() {
@@ -124,13 +122,11 @@ public:
         }
         last_live_note_tick = global_tick_count;
 
-        // Legato interrupt
         if (active_live_note != -1 && buffer_count > 0) {
             uint32_t dur = global_tick_count - active_note_start_tick;
             note_buffer[buffer_count - 1].duration_ticks = (dur > 0) ? dur : 1;
         }
 
-        // Chord filter (~20ms / 1 tick)
         if (delta_ticks <= 1 && buffer_count > 0) {
             uint32_t prev_delta = note_buffer[buffer_count - 1].delta_ticks;
             note_buffer[buffer_count - 1] = {prev_delta, note, velocity, 2};
@@ -162,17 +158,49 @@ public:
 protected:
     // --- AUDIO INTERRUPT LOOP (48kHz) ---
     void ProcessSample() override {
-        // 1. Drain ONLY ONE message per sample to keep the interrupt incredibly fast
-        MIDIMessage msg;
-        if (queue_try_remove(&midi_queue, &msg)) {
-            if (msg.status == 0xF8) HandleMIDIClock();
-            else if (msg.status == 0xFA) HandleMIDIStart();
-            else if (msg.status == 0xFC) HandleMIDIStop();
-            else if ((msg.status & 0xF0) == 0x90) HandleMIDINoteOn(msg.data1, msg.data2);
-            else if ((msg.status & 0xF0) == 0x80) HandleMIDINoteOff(msg.data1);
+        // 1. HARDWARE CLOCK: Bottom Left Jack (Pulse 1)
+        if (PulseIn1RisingEdge()) {
+            use_external_clock = true; 
+            global_tick_count++;
         }
 
-        // 2. Fallback Internal Clock
+        // 2. PRECEDENCE: Check Bottom Right Jack (Pulse 2) for a Gate cable
+        bool gate_mode_active = Connected(Input::Pulse2);
+
+        // 3. DRAIN MIDI QUEUE
+        MIDIMessage msg;
+        if (queue_try_remove(&midi_queue, &msg)) {
+            if (!gate_mode_active) {
+                if (msg.status == 0xF8) HandleMIDIClock();
+                else if (msg.status == 0xFA) HandleMIDIStart();
+                else if (msg.status == 0xFC) HandleMIDIStop();
+                else if ((msg.status & 0xF0) == 0x90) HandleMIDINoteOn(msg.data1, msg.data2);
+                else if ((msg.status & 0xF0) == 0x80) HandleMIDINoteOff(msg.data1);
+            } else {
+                if (msg.status == 0xF8) HandleMIDIClock();
+                if (msg.status == 0xFA) HandleMIDIStart();
+                if (msg.status == 0xFC) HandleMIDIStop();
+            }
+        }
+
+        // 4. CV/GATE LOGIC: Pitch from Middle-Left (CV 1), Gate from Bottom-Right (Pulse 2)
+        if (gate_mode_active) {
+            bool current_gate = PulseIn2();
+            if (current_gate && !last_pulse_gate) {
+                int note_val = 60 + (CVIn1() / 28); 
+                if (note_val < 0) note_val = 0;
+                if (note_val > 127) note_val = 127;
+                
+                last_cv_note = (uint8_t)note_val;
+                HandleMIDINoteOn(last_cv_note, 64);
+            } 
+            else if (!current_gate && last_pulse_gate) {
+                HandleMIDINoteOff(last_cv_note);
+            }
+            last_pulse_gate = current_gate;
+        }
+
+        // 5. INTERNAL CLOCK FALLBACK
         if (!use_external_clock) {
             internal_sample_counter++;
             if (internal_sample_counter >= INTERNAL_TICK_SAMPLES) {
@@ -180,8 +208,8 @@ protected:
                 internal_sample_counter = 0;
             }
         }
-
-        // 3. Read UI State
+        
+        // 6. UI and Sequencer Logic
         int k_x = KnobVal(Knob::X);
         int k_y = KnobVal(Knob::Y);
         int n_notes_ch1 = ((k_x * 11) / 4095) + 2;
@@ -190,10 +218,9 @@ protected:
         int max_req = (n_notes_ch1 > n_notes_ch2) ? n_notes_ch1 : n_notes_ch2;
         bool buffer_ready = (buffer_count > (max_req + 3));
 
-        // 4. Big Knob Logic -> Converted to Q16 math!
         int main_val = KnobVal(Knob::Main); 
         uint32_t ch2_offset_percent_Q16 = 0;
-        uint32_t ch2_speed_Q16 = Q16_ONE; // Default 1.0x speed
+        uint32_t ch2_speed_Q16 = Q16_ONE;
 
         if (main_val < 1875) {
             ch2_offset_percent_Q16 = ((1875 - main_val) * Q16_ONE) / 1875;
@@ -201,39 +228,29 @@ protected:
             ch2_speed_Q16 = Q16_ONE + (((main_val - 2187) * Q16_ONE) / 1908);
         }
 
-        // 5. Switch Logic (Latch & Sync)
         Switch sw_val = SwitchVal();
         bool loop_mode_active = (sw_val == Down || sw_val == Middle) && buffer_ready;
 
         if (sw_val == Down) {
             if (sw_down_samples == 0) long_press_triggered = false;
             sw_down_samples++;
-            
             if (sw_down_samples >= LATCH_SAMPLES && !long_press_triggered) {
                 reverse_ch2 = !reverse_ch2;
                 long_press_triggered = true;
             }
         } else {
-            if (sw_down_samples > 0) {
-                if (sw_down_samples < LATCH_SAMPLES && !long_press_triggered) {
-                    if (loop_duration_ch2_Q16 > 0) {
-                        // Integer modulo replaces fmod!
-                        curr_t_ch2_Q16 = curr_t_ch1_Q16 % loop_duration_ch2_Q16;
-                    } else {
-                        curr_t_ch2_Q16 = 0;
-                    }
-                }
+            if (sw_down_samples > 0 && sw_down_samples < LATCH_SAMPLES && !long_press_triggered) {
+                if (loop_duration_ch2_Q16 > 0) curr_t_ch2_Q16 = curr_t_ch1_Q16 % loop_duration_ch2_Q16;
+                else curr_t_ch2_Q16 = 0;
             }
             sw_down_samples = 0;
             long_press_triggered = false;
         }
 
-        // 6. Run Sequencer
         if (loop_mode_active) {
             ProcessLoopMode(n_notes_ch1, n_notes_ch2, ch2_offset_percent_Q16, ch2_speed_Q16);
         }
 
-        // 7. Check Gate Timeouts
         if (gate1_active && global_tick_count >= gate1_close_tick) {
             PulseOut1(false);
             gate1_active = false;
@@ -245,15 +262,11 @@ protected:
     }
 
 private:
-    // --- INTERNAL HELPERS ---
     void PushToBuffer(NoteEvent ev) {
         if (buffer_count < MAX_BUFFER) {
             note_buffer[buffer_count++] = ev;
         } else {
-            // Shift array left
-            for (int i = 1; i < MAX_BUFFER; i++) {
-                note_buffer[i - 1] = note_buffer[i];
-            }
+            for (int i = 1; i < MAX_BUFFER; i++) note_buffer[i - 1] = note_buffer[i];
             note_buffer[MAX_BUFFER - 1] = ev;
         }
     }
@@ -261,7 +274,6 @@ private:
     void BuildTimeline(int n_notes, bool reverse, LoopEvent* events, int& num_events, uint32_t& duration_Q16) {
         num_events = 0;
         uint32_t current_t_Q16 = 0;
-        
         int start_idx = buffer_count - n_notes - 1;
         if (start_idx < 0) start_idx = 0;
         int end_idx = buffer_count - 1;
@@ -272,7 +284,6 @@ private:
                 events[num_events++] = {current_t_Q16, note_buffer[i].note, note_buffer[i].velocity, IntToQ16(note_buffer[i].duration_ticks)};
             }
         } else {
-            // Reverse extraction
             for (int i = end_idx - 1; i >= start_idx; i--) {
                 current_t_Q16 += IntToQ16(note_buffer[i].delta_ticks);
                 events[num_events++] = {current_t_Q16, note_buffer[i].note, note_buffer[i].velocity, IntToQ16(note_buffer[i].duration_ticks)};
@@ -284,32 +295,20 @@ private:
     void CheckTriggers(uint32_t start_t_Q16, uint32_t end_t_Q16, LoopEvent* events, int num_events, uint32_t duration_Q16, int channel, uint32_t speed_Q16) {
         if (start_t_Q16 < end_t_Q16) {
             for (int i = 0; i < num_events; i++) {
-                if (events[i].t_Q16 > start_t_Q16 && events[i].t_Q16 <= end_t_Q16) {
-                    FireEvent(channel, events[i], speed_Q16);
-                }
+                if (events[i].t_Q16 > start_t_Q16 && events[i].t_Q16 <= end_t_Q16) FireEvent(channel, events[i], speed_Q16);
             }
         } else {
-            // Wrap-around boundary
             for (int i = 0; i < num_events; i++) {
-                if (events[i].t_Q16 > start_t_Q16 && events[i].t_Q16 <= duration_Q16) {
-                    FireEvent(channel, events[i], speed_Q16);
-                }
-                if (events[i].t_Q16 <= end_t_Q16) {
-                    FireEvent(channel, events[i], speed_Q16);
-                }
+                if (events[i].t_Q16 > start_t_Q16 && events[i].t_Q16 <= duration_Q16) FireEvent(channel, events[i], speed_Q16);
+                if (events[i].t_Q16 <= end_t_Q16) FireEvent(channel, events[i], speed_Q16);
             }
         }
     }
 
     void FireEvent(int channel, const LoopEvent& ev, uint32_t speed_Q16) {
         TriggerVoice(channel, ev.note, ev.velocity);
-        
-        // Calculate adjusted duration: (duration / speed)
-        // Since both are Q16, we do: (duration_Q16 << 16) / speed_Q16 to maintain scale, 
-        // then shift down to standard integer ticks.
         uint32_t adj_dur_ticks = (uint32_t)(((uint64_t)ev.duration_Q16 << 16) / speed_Q16) >> 16;
-        if (adj_dur_ticks == 0) adj_dur_ticks = 1; // Minimum 1 tick gate
-
+        if (adj_dur_ticks == 0) adj_dur_ticks = 1;
         if (channel == 0) gate1_close_tick = global_tick_count + adj_dur_ticks;
         if (channel == 1) gate2_close_tick = global_tick_count + adj_dur_ticks;
     }
@@ -318,11 +317,9 @@ private:
         if (!was_in_loop_mode) {
             last_seq_step_tick = global_tick_count;
             was_in_loop_mode = true;
-
             last_n_notes_ch1 = n_notes_ch1;
             BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16);
             curr_t_ch1_Q16 = 0;
-
             last_n_notes_ch2 = n_notes_ch2;
             last_reverse = reverse_ch2;
             BuildTimeline(n_notes_ch2, reverse_ch2, loop_events_ch2, num_events_ch2, loop_duration_ch2_Q16);
@@ -333,34 +330,23 @@ private:
         last_seq_step_tick = global_tick_count;
 
         if (dt_ticks > 0) {
-            // --- CHANNEL 1 ---
             if (num_events_ch1 > 0) {
                 uint32_t v_last_t1_Q16 = curr_t_ch1_Q16;
-                // Standard modulo!
                 curr_t_ch1_Q16 = (curr_t_ch1_Q16 + IntToQ16(dt_ticks)) % loop_duration_ch1_Q16;
-                
                 CheckTriggers(v_last_t1_Q16, curr_t_ch1_Q16, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16, 0, Q16_ONE);
-
                 if (curr_t_ch1_Q16 < v_last_t1_Q16 && n_notes_ch1 != last_n_notes_ch1) {
                     last_n_notes_ch1 = n_notes_ch1;
                     BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16);
                 }
             }
-
-            // --- CHANNEL 2 ---
             if (num_events_ch2 > 0) {
                 uint32_t base_last_t2_Q16 = curr_t_ch2_Q16;
-                
-                // dt_ticks * speed_Q16 natively results in Q16 scale
                 uint32_t advanced_ticks_Q16 = dt_ticks * ch2_speed_Q16;
                 curr_t_ch2_Q16 = (curr_t_ch2_Q16 + advanced_ticks_Q16) % loop_duration_ch2_Q16;
-                
                 uint32_t offset_ticks_Q16 = MulQ16(loop_duration_ch2_Q16, ch2_offset_percent_Q16);
                 uint32_t actual_last_t2_Q16 = (base_last_t2_Q16 + offset_ticks_Q16) % loop_duration_ch2_Q16;
                 uint32_t actual_curr_t2_Q16 = (curr_t_ch2_Q16 + offset_ticks_Q16) % loop_duration_ch2_Q16;
-
                 CheckTriggers(actual_last_t2_Q16, actual_curr_t2_Q16, loop_events_ch2, num_events_ch2, loop_duration_ch2_Q16, 1, ch2_speed_Q16);
-
                 if (curr_t_ch2_Q16 < base_last_t2_Q16 && (n_notes_ch2 != last_n_notes_ch2 || reverse_ch2 != last_reverse)) {
                     last_n_notes_ch2 = n_notes_ch2;
                     last_reverse = reverse_ch2;

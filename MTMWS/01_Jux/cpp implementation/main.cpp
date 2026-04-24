@@ -23,6 +23,8 @@ int main() {
     // 2. Create the looper (Hardware setup happens here)
     looper = new TimeshiftLooper();
 
+    looper->EnableNormalisationProbe(); // for using CV ins
+
     // 3. Launch the audio engine on the second core
     multicore_launch_core1(core1_entry);
 
