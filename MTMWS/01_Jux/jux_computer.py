@@ -6,6 +6,8 @@
 # - Tick-Based Timeline for perfect Ableton/Logic Pro MIDI Clock sync.
 # - Auto-fallback to internal clock if no USB clock is present.
 # - Big Knob Bi-Polar Control: CCW = Phase Shift, CW = 2x Speed Up.
+# - Quantized Pattern Changes: Knob tweaks wait for the end of the loop.
+# - LED Feedback: Shows active pattern length when tweaking X or Y knobs.
 #
 # --- ----- ---
 
@@ -57,6 +59,24 @@ def check_gate_timeouts(comp, state):
     if comp.pulse_2_out.value and state.global_tick_count >= state.gate2_close_tick:
         comp.pulse_2_out.value = False
 
+def update_ui_leds(comp, state, now):
+    """Handles lighting and fading the LEDs to show pattern lengths"""
+    time_left = state.ui_led_timeout - now
+    if time_left > 0:
+        # Fade out smoothly over the last 0.5 seconds
+        brightness = min(1.0, time_left * 2.0)
+        duty = int(65535 * brightness)
+        
+        for i in range(6):
+            if i < state.ui_led_display_value:
+                comp.leds[i].duty_cycle = duty
+            else:
+                comp.leds[i].duty_cycle = 0
+    else:
+        # Keep them off if no knob is being turned
+        for i in range(6):
+            comp.leds[i].duty_cycle = 0
+
 # --- STATE MANAGEMENT ---
 class LooperState:
     """A simple container to hold all our changing variables in one place"""
@@ -98,6 +118,12 @@ class LooperState:
         self.reverse_ch2 = False
         self.last_reverse = False
         self.long_press_triggered = False
+        
+        # LED UI Tracking
+        self.physical_n_notes_ch1 = 0
+        self.physical_n_notes_ch2 = 0
+        self.ui_led_timeout = 0
+        self.ui_led_display_value = 0
 
 # --- CORE OPERATION FUNCTIONS ---
 
@@ -171,9 +197,6 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
             
             # Apply the phase offset just for reading the triggers
             offset_ticks = state.loop_duration_ch2 * ch2_offset_percent
-
-            # change to this if it should scrub along channel 1 pattern instead 
-            #offset_ticks = state.loop_duration_ch1 * ch2_offset_percent
             
             actual_last_t2 = (base_last_t2 + offset_ticks) % state.loop_duration_ch2
             actual_curr_t2 = (state.curr_t_ch2 + offset_ticks) % state.loop_duration_ch2
@@ -286,6 +309,17 @@ while True:
     n_notes_ch2 = int((comp.knob_y / 65536) * 11) + 2 
     buffer_ready = len(state.note_buffer) > (max(n_notes_ch1, n_notes_ch2) + 3)
     
+    # --- UI LED FEEDBACK FOR KNOBS ---
+    if n_notes_ch1 != state.physical_n_notes_ch1:
+        state.physical_n_notes_ch1 = n_notes_ch1
+        state.ui_led_display_value = n_notes_ch1 if n_notes_ch1 <= 6 else n_notes_ch1 - 6
+        state.ui_led_timeout = now + 1.0 # Display for 1 second
+
+    if n_notes_ch2 != state.physical_n_notes_ch2:
+        state.physical_n_notes_ch2 = n_notes_ch2
+        state.ui_led_display_value = n_notes_ch2 if n_notes_ch2 <= 6 else n_notes_ch2 - 6
+        state.ui_led_timeout = now + 1.0
+    
     # --- BIG KNOB LOGIC (Phase Offset & Speed) ---
     main_val = comp.knob_main
     ch2_offset_percent = 0.0
@@ -360,5 +394,6 @@ while True:
         # Pass our new modifiers into the looper function
         process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, state.reverse_ch2, ch2_offset_percent, ch2_speed)
         
-    # 6. Gate Timeouts
+    # 6. Gate Timeouts & UI LEDs
     check_gate_timeouts(comp, state)
+    update_ui_leds(comp, state, now)
