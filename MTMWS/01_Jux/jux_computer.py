@@ -8,6 +8,7 @@
 # - Big Knob Bi-Polar Control: CCW = Phase Shift, CW = 2x Speed Up.
 # - Quantized Pattern Changes: Knob tweaks wait for the end of the loop.
 # - LED Feedback: Shows active pattern length when tweaking X or Y knobs.
+# - LED Metronome: Columns animate to the BPM, reacting to speed and reverse.
 #
 # --- ----- ---
 
@@ -60,10 +61,10 @@ def check_gate_timeouts(comp, state):
         comp.pulse_2_out.value = False
 
 def update_ui_leds(comp, state, now):
-    """Handles lighting and fading the LEDs to show pattern lengths"""
+    """Handles lighting and fading the LEDs to show pattern lengths or loop playback"""
     time_left = state.ui_led_timeout - now
     if time_left > 0:
-        # Fade out smoothly over the last 0.5 seconds
+        # Override: UI Knob tweaking shows the pattern length
         brightness = min(1.0, time_left * 2.0)
         duty = int(65535 * brightness)
         
@@ -73,9 +74,27 @@ def update_ui_leds(comp, state, now):
             else:
                 comp.leds[i].duty_cycle = 0
     else:
-        # Keep them off if no knob is being turned
-        for i in range(6):
-            comp.leds[i].duty_cycle = 0
+        # Standard: Looping Metronome Animation
+        if state.was_in_loop_mode:
+            # 24 ticks = 1 beat (quarter note)
+            ch1_beat = int(state.anim_ticks_ch1 / 24) % 3
+            ch2_beat = int(state.anim_ticks_ch2 / 24) % 3
+            
+            # Run bottom-up if reversed
+            if state.last_reverse:
+                ch2_beat = 2 - ch2_beat
+            
+            # Update Channel 1 (Left Column: LEDs 0, 1, 2)
+            for i in range(3):
+                comp.leds[i].duty_cycle = 65535 if i == ch1_beat else 0
+                    
+            # Update Channel 2 (Right Column: LEDs 3, 4, 5)
+            for i in range(3):
+                comp.leds[i+3].duty_cycle = 65535 if i == ch2_beat else 0
+        else:
+            # Keep them off if no knob is being turned and not looping
+            for i in range(6):
+                comp.leds[i].duty_cycle = 0
 
 # --- STATE MANAGEMENT ---
 class LooperState:
@@ -124,6 +143,10 @@ class LooperState:
         self.physical_n_notes_ch2 = 0
         self.ui_led_timeout = 0
         self.ui_led_display_value = 0
+        
+        # LED Animation Tracking (Independent of loop length)
+        self.anim_ticks_ch1 = 0.0
+        self.anim_ticks_ch2 = 0.0
 
 # --- CORE OPERATION FUNCTIONS ---
 
@@ -136,6 +159,10 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
     if not state.was_in_loop_mode:
         state.last_seq_step_tick = state.global_tick_count
         state.was_in_loop_mode = True
+        
+        # Reset animation trackers
+        state.anim_ticks_ch1 = 0.0
+        state.anim_ticks_ch2 = 0.0
 
         # Build Channel 1
         state.last_n_notes_ch1 = n_notes_ch1
@@ -167,6 +194,10 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
     state.last_seq_step_tick = state.global_tick_count
 
     if dt_ticks > 0:
+        # Update animation trackers
+        state.anim_ticks_ch1 += dt_ticks
+        state.anim_ticks_ch2 += (dt_ticks * ch2_speed)
+        
         # --- PROCESS CHANNEL 1 ---
         if state.loop_events_ch1:
             v_last_t1 = state.curr_t_ch1
@@ -197,6 +228,9 @@ def process_loop_mode(comp, state, n_notes_ch1, n_notes_ch2, reverse_ch2, ch2_of
             
             # Apply the phase offset just for reading the triggers
             offset_ticks = state.loop_duration_ch2 * ch2_offset_percent
+
+            # change to this if it should scrub along channel 1 pattern instead 
+            #offset_ticks = state.loop_duration_ch1 * ch2_offset_percent
             
             actual_last_t2 = (base_last_t2 + offset_ticks) % state.loop_duration_ch2
             actual_curr_t2 = (state.curr_t_ch2 + offset_ticks) % state.loop_duration_ch2
@@ -360,6 +394,9 @@ while True:
                     state.curr_t_ch2 = state.curr_t_ch1 % state.loop_duration_ch2
                 else:
                     state.curr_t_ch2 = 0.0
+                
+                # Sync the animations as well!
+                state.anim_ticks_ch2 = state.anim_ticks_ch1
                     
         # Reset tracking variables
         state.sw_down_started_at = 0
