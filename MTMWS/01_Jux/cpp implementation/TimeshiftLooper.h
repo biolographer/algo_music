@@ -87,9 +87,10 @@ public:
     bool last_reverse = false;
     bool long_press_triggered = false;
 
-    TimeshiftLooper() {
-        UpdateControls();
-    }
+    // NOT NEEDED?
+    //TimeshiftLooper() {
+    //    UpdateControls();
+    //}
 
     // --- MIDI INGESTION ---
     void HandleMIDIClock() {

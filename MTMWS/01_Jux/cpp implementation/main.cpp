@@ -1,6 +1,7 @@
 #include "TimeshiftLooper.h"
 #include "tusb.h"
 #include "pico/multicore.h"
+#include "pico/stdlib.h"
 
 // The queue and pointer are defined here
 queue_t midi_queue;
@@ -12,7 +13,8 @@ void core1_entry() {
 }
 
 int main() {
-    board_init();
+    // board_init();
+    stdio_init_all();
     tusb_init();
 
     // 1. Initialize the thread-safe queue
