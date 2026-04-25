@@ -4,7 +4,7 @@
 #include "ComputerCard.h"
 #include "pico/util/queue.h"
 #include <stdint.h>
-// v0.3
+
 // 1. Struct for Core 0 to Core 1 communication
 struct MIDIMessage {
     uint8_t status;
@@ -44,6 +44,21 @@ public:
     static constexpr int MAX_BUFFER = 30;
     static constexpr uint32_t LATCH_SAMPLES = 24000; 
     static constexpr uint32_t INTERNAL_TICK_SAMPLES = 1000; 
+
+    // --- ENVELOPE / VCA STATE ---
+    enum EnvState { IDLE, ATTACK, RELEASE };
+
+    struct DigitalVCA {
+        EnvState state = IDLE;
+        uint32_t current_level_Q16 = 0;      
+        uint32_t target_level_Q16 = 0;       
+        uint32_t attack_step = 2000;  
+        uint32_t release_step = 2000; 
+        uint32_t vel_timing_offset = 0; 
+    };
+
+    DigitalVCA vca1;
+    DigitalVCA vca2;
 
     // State Variables
     NoteEvent note_buffer[MAX_BUFFER];
@@ -164,7 +179,9 @@ public:
             
             // ONLY close the physical gates if NOT in Loop Mode
             if (!CheckLoopModeActive()) {
-                CloseGates();
+                // Triggers release phase for the envelopes
+                gate1_close_tick = global_tick_count;
+                gate2_close_tick = global_tick_count;
             }
             active_live_note = -1;
         }
@@ -269,14 +286,88 @@ protected:
             was_in_loop_mode = false; 
         }
 
+        // =========================================================
+        // --- 90% CV / 10% VELOCITY ENVELOPE TIMING ---
+        // =========================================================
+        
+        int32_t raw_cv2 = CVIn2(); 
+        
+        // Full-Wave Rectifier: Absolute Value
+        int32_t abs_cv2 = (raw_cv2 < 0) ? -raw_cv2 : raw_cv2;
+        if (abs_cv2 > 2047) abs_cv2 = 2047; // Clamp to max positive
+        
+        // 90% CV Base
+        uint32_t cv_base = (abs_cv2 * 1842) / 2047;
+        
+        // Add 10% Velocity Offset
+        uint32_t timing_1 = cv_base + vca1.vel_timing_offset;
+        uint32_t timing_2 = cv_base + vca2.vel_timing_offset;
+        if (timing_1 > 2047) timing_1 = 2047;
+        if (timing_2 > 2047) timing_2 = 2047;
+
+        // Exponential Curve (step 3 = ~0.45s max time, step ~2000 = ~0.6ms min time)
+        vca1.attack_step  = 3 + ((2047 - timing_1) * (2047 - timing_1)) / 2095;
+        vca1.release_step = 3 + ((2047 - timing_1) * (2047 - timing_1)) / 2095;
+        vca2.attack_step  = 3 + ((2047 - timing_2) * (2047 - timing_2)) / 2095;
+        vca2.release_step = 3 + ((2047 - timing_2) * (2047 - timing_2)) / 2095;
+
+
+        // =========================================================
+        // --- DIGITAL VCA & ENVELOPE PROCESSING ---
+        // =========================================================
+
+        // 1. Check for Gate Closures
         if (gate1_active && global_tick_count >= gate1_close_tick) {
+            vca1.state = RELEASE;
             PulseOut1(false);
             gate1_active = false;
         }
         if (gate2_active && global_tick_count >= gate2_close_tick) {
+            vca2.state = RELEASE;
             PulseOut2(false);
             gate2_active = false;
         }
+
+        // 2. Process VCA 1
+        if (vca1.state == ATTACK) {
+            vca1.current_level_Q16 += vca1.attack_step;
+            if (vca1.current_level_Q16 >= vca1.target_level_Q16) {
+                vca1.current_level_Q16 = vca1.target_level_Q16; // Hold at sustain
+            }
+        } else if (vca1.state == RELEASE) {
+            if (vca1.current_level_Q16 > vca1.release_step) {
+                vca1.current_level_Q16 -= vca1.release_step;
+            } else {
+                vca1.current_level_Q16 = 0;
+                vca1.state = IDLE;
+            }
+        }
+
+        // 3. Process VCA 2
+        if (vca2.state == ATTACK) {
+            vca2.current_level_Q16 += vca2.attack_step;
+            if (vca2.current_level_Q16 >= vca2.target_level_Q16) {
+                vca2.current_level_Q16 = vca2.target_level_Q16;
+            }
+        } else if (vca2.state == RELEASE) {
+            if (vca2.current_level_Q16 > vca2.release_step) {
+                vca2.current_level_Q16 -= vca2.release_step;
+            } else {
+                vca2.current_level_Q16 = 0;
+                vca2.state = IDLE;
+            }
+        }
+
+        // 4. Multiply Incoming Audio by Envelope Level
+        int16_t raw_audio_1 = AudioIn1(); 
+        int16_t raw_audio_2 = AudioIn2(); 
+        
+        int32_t shaped_audio_1 = ((int32_t)raw_audio_1 * (int32_t)vca1.current_level_Q16) >> 16;
+        int32_t shaped_audio_2 = ((int32_t)raw_audio_2 * (int32_t)vca2.current_level_Q16) >> 16;
+        
+        // 5. Send to physical outputs
+        AudioOut1((int16_t)shaped_audio_1);
+        AudioOut2((int16_t)shaped_audio_2);
     }
 
 private:
@@ -377,22 +468,25 @@ private:
     void TriggerVoice(int channel, uint8_t note, uint8_t velocity) {
         if (channel == 0) {
             CVOut1MIDINote(note); 
-            AudioOut1((velocity * 2047) / 127); 
+            vca1.target_level_Q16 = ((uint32_t)velocity * Q16_ONE) / 127;
+            vca1.vel_timing_offset = ((127 - velocity) * 204) / 127; 
+            vca1.state = ATTACK;
             PulseOut1(true);
             gate1_active = true;
         } else {
             CVOut2MIDINote(note);
-            AudioOut2((velocity * 2047) / 127);
+            vca2.target_level_Q16 = ((uint32_t)velocity * Q16_ONE) / 127;
+            vca2.vel_timing_offset = ((127 - velocity) * 204) / 127; 
+            vca2.state = ATTACK;
             PulseOut2(true);
             gate2_active = true;
         }
     }
 
     void CloseGates() {
-        PulseOut1(false);
-        PulseOut2(false);
-        gate1_active = false;
-        gate2_active = false;
+        // Now just instantly shifts envelopes to release phase
+        gate1_close_tick = global_tick_count;
+        gate2_close_tick = global_tick_count;
     }
 };
 
