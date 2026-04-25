@@ -4,7 +4,7 @@
 #include "ComputerCard.h"
 #include "pico/util/queue.h"
 #include <stdint.h>
-
+// v0.3
 // 1. Struct for Core 0 to Core 1 communication
 struct MIDIMessage {
     uint8_t status;
