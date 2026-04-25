@@ -90,6 +90,18 @@ public:
     bool last_reverse = false;
     bool long_press_triggered = false;
 
+    // handle live loop leakage
+    bool CheckLoopModeActive() {
+        int k_x = KnobVal(Knob::X);
+        int k_y = KnobVal(Knob::Y);
+        int n_notes_ch1 = ((k_x * 11) / 4095) + 2;
+        int n_notes_ch2 = ((k_y * 11) / 4095) + 2;
+        int max_req = (n_notes_ch1 > n_notes_ch2) ? n_notes_ch1 : n_notes_ch2;
+        Switch sw_val = SwitchVal();
+        
+        return (sw_val == Down || sw_val == Middle) && (buffer_count > (max_req + 3));
+    }
+
     // --- MIDI INGESTION ---
     void HandleMIDIClock() {
         use_external_clock = true;
@@ -111,11 +123,7 @@ public:
             return;
         }
 
-        if (was_in_loop_mode) {
-            CloseGates();
-            was_in_loop_mode = false;
-        }
-
+        // --- 1. ALWAYS Record to Buffer (Background Tracking) ---
         uint32_t delta_ticks = 24; 
         if (last_live_note_tick != 0xFFFFFFFF) {
             delta_ticks = global_tick_count - last_live_note_tick;
@@ -137,20 +145,27 @@ public:
         active_live_note = note;
         active_note_start_tick = global_tick_count;
 
-        TriggerVoice(0, note, velocity);
-        TriggerVoice(1, note, velocity);
-
-        gate1_close_tick = global_tick_count + 9999;
-        gate2_close_tick = global_tick_count + 9999;
+        // --- 2. ONLY Trigger Voices if NOT in Loop Mode ---
+        if (!CheckLoopModeActive()) {
+            TriggerVoice(0, note, velocity);
+            TriggerVoice(1, note, velocity);
+            gate1_close_tick = global_tick_count + 9999;
+            gate2_close_tick = global_tick_count + 9999;
+        }
     }
 
     void HandleMIDINoteOff(uint8_t note) {
         if (note == active_live_note) {
+            // ALWAYS update the duration of the note in the buffer
             uint32_t dur = global_tick_count - active_note_start_tick;
             if (buffer_count > 0) {
                 note_buffer[buffer_count - 1].duration_ticks = (dur > 0) ? dur : 1;
             }
-            CloseGates();
+            
+            // ONLY close the physical gates if NOT in Loop Mode
+            if (!CheckLoopModeActive()) {
+                CloseGates();
+            }
             active_live_note = -1;
         }
     }
@@ -249,6 +264,9 @@ protected:
 
         if (loop_mode_active) {
             ProcessLoopMode(n_notes_ch1, n_notes_ch2, ch2_offset_percent_Q16, ch2_speed_Q16);
+        } else {
+            // Fix for overlapping live and loop mode
+            was_in_loop_mode = false; 
         }
 
         if (gate1_active && global_tick_count >= gate1_close_tick) {
