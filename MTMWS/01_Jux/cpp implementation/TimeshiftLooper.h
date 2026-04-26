@@ -294,6 +294,9 @@ protected:
         } else {
             // Fix for overlapping live and loop mode
             was_in_loop_mode = false; 
+
+            // switch off reverse mode
+            reverse_ch2 = false;
         }
 
         // =========================================================
