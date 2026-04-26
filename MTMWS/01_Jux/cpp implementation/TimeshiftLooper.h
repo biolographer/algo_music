@@ -254,8 +254,8 @@ protected:
         // 6. UI and Sequencer Logic
         int k_x = KnobVal(Knob::X);
         int k_y = KnobVal(Knob::Y);
-        int n_notes_ch1 = ((k_x * 11) / 4095) + 2;
-        int n_notes_ch2 = ((k_y * 11) / 4095) + 2;
+        int n_notes_ch1 = ((k_x * 11) / 4096) + 2;
+        int n_notes_ch2 = ((k_y * 11) / 4096) + 2;
         
         int max_req = (n_notes_ch1 > n_notes_ch2) ? n_notes_ch1 : n_notes_ch2;
         bool buffer_ready = (buffer_count > (max_req + 3));
