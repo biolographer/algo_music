@@ -21,6 +21,7 @@
 - [x] Make it go such note 1 can maximally be shifted to note N of a pattern length N
 - [x] Consider phase slipping reset when toggle is flicked  
 - [x] No pattern restart when X/Y knobs are turned, instead wait for pattern to end
+- [ ] after reverse mode is exited it becomes impossible to sync the patterns up again with the sync
 - [ ] LED signals
 - [ ] control time offset with LFO
 - [ ] Audio/CV to MIDI conversion so audio inptus can give sequence?

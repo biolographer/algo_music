@@ -64,6 +64,10 @@ public:
     NoteEvent note_buffer[MAX_BUFFER];
     int buffer_count = 0;
 
+    // --- SNAPSHOT BUFFER FOR LOOP SYNC ---
+    NoteEvent snapshot_buffer[MAX_BUFFER];
+    int snapshot_buffer_count = 0;
+
     // Physical Input Tracking
     bool last_pulse_gate = false;
     uint8_t last_cv_note = 0;
@@ -383,19 +387,32 @@ private:
     void BuildTimeline(int n_notes, bool reverse, LoopEvent* events, int& num_events, uint32_t& duration_Q16) {
         num_events = 0;
         uint32_t current_t_Q16 = 0;
-        int start_idx = buffer_count - n_notes - 1;
+        
+        // SNAPSHOT FIX: Read exclusively from the frozen snapshot array
+        int start_idx = snapshot_buffer_count - n_notes - 1;
         if (start_idx < 0) start_idx = 0;
-        int end_idx = buffer_count - 1;
+        int end_idx = snapshot_buffer_count - 1;
+        if (end_idx < 0) end_idx = 0;
 
         if (!reverse) {
             for (int i = start_idx; i < end_idx; i++) {
-                current_t_Q16 += IntToQ16(note_buffer[i].delta_ticks);
-                events[num_events++] = {current_t_Q16, note_buffer[i].note, note_buffer[i].velocity, IntToQ16(note_buffer[i].duration_ticks)};
+                current_t_Q16 += IntToQ16(snapshot_buffer[i].delta_ticks);
+                events[num_events++] = {
+                    current_t_Q16, 
+                    snapshot_buffer[i].note, 
+                    snapshot_buffer[i].velocity, 
+                    IntToQ16(snapshot_buffer[i].duration_ticks)
+                };
             }
         } else {
             for (int i = end_idx - 1; i >= start_idx; i--) {
-                current_t_Q16 += IntToQ16(note_buffer[i].delta_ticks);
-                events[num_events++] = {current_t_Q16, note_buffer[i].note, note_buffer[i].velocity, IntToQ16(note_buffer[i].duration_ticks)};
+                current_t_Q16 += IntToQ16(snapshot_buffer[i].delta_ticks);
+                events[num_events++] = {
+                    current_t_Q16, 
+                    snapshot_buffer[i].note, 
+                    snapshot_buffer[i].velocity, 
+                    IntToQ16(snapshot_buffer[i].duration_ticks)
+                };
             }
         }
         duration_Q16 = (current_t_Q16 > 0) ? current_t_Q16 : IntToQ16(24);
@@ -426,6 +443,13 @@ private:
         if (!was_in_loop_mode) {
             last_seq_step_tick = global_tick_count;
             was_in_loop_mode = true;
+            
+            // SNAPSHOT FIX: Lock the snapshot buffer so background playing doesn't ruin rebuilds
+            snapshot_buffer_count = buffer_count;
+            for (int i = 0; i < buffer_count; i++) {
+                snapshot_buffer[i] = note_buffer[i];
+            }
+
             last_n_notes_ch1 = n_notes_ch1;
             BuildTimeline(n_notes_ch1, false, loop_events_ch1, num_events_ch1, loop_duration_ch1_Q16);
             curr_t_ch1_Q16 = 0;
