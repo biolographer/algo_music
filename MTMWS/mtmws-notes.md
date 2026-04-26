@@ -21,14 +21,15 @@
 - [x] Make it go such note 1 can maximally be shifted to note N of a pattern length N
 - [x] Consider phase slipping reset when toggle is flicked  
 - [x] No pattern restart when X/Y knobs are turned, instead wait for pattern to end
-- [ ] after reverse mode is exited it becomes impossible to sync the patterns up again with the sync
+- [x] after reverse mode is exited it becomes impossible to sync the patterns up again with the sync
+- [ ] midi stop signal?
+- [ ] when using audio channels it kills loop mode
+- [ ] when switching into live mode also deactivate reverse
+- [ ] clickyness of the envelopes
 - [ ] LED signals
 - [ ] control time offset with LFO
-- [ ] Audio/CV to MIDI conversion so audio inptus can give sequence?
-    - [ ] FFT?
-    - [ ] Time-domain analysis: Autocorrelation and Zero crossing?
-    - [ ] CircuitPython ulab
-
+- [ ] Audio in and out as VCA envelope
+ 
 --- 
 
 ## Jux audio
@@ -42,3 +43,8 @@
     - 11_goldfish card
     - Utility_pair (https://github.com/chrisgjohnson/Utility-Pair/)
     - RYK card (commercial, code not published)
+
+- [ ] Audio/CV to MIDI conversion so audio inptus can give sequence?
+    - [ ] FFT?
+    - [ ] Time-domain analysis: Autocorrelation and Zero crossing?
+    - [ ] CircuitPython ulab

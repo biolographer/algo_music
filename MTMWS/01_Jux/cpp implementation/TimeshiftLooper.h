@@ -146,6 +146,12 @@ public:
         uint32_t delta_ticks = 24; 
         if (last_live_note_tick != 0xFFFFFFFF) {
             delta_ticks = global_tick_count - last_live_note_tick;
+            
+            // FIX: Cap the maximum recorded silence to 8 seconds (8000 ticks)
+            // This prevents massive dead gaps in the loop when you pause to patch cables!
+            if (delta_ticks > 8000) {
+                delta_ticks = 8000;
+            }
         }
         last_live_note_tick = global_tick_count;
 
@@ -334,9 +340,19 @@ protected:
 
         // 2. Process VCA 1
         if (vca1.state == ATTACK) {
-            vca1.current_level_Q16 += vca1.attack_step;
-            if (vca1.current_level_Q16 >= vca1.target_level_Q16) {
-                vca1.current_level_Q16 = vca1.target_level_Q16; // Hold at sustain
+            if (vca1.current_level_Q16 < vca1.target_level_Q16) {
+                // If target is Louder: Slew UP smoothly
+                vca1.current_level_Q16 += vca1.attack_step;
+                if (vca1.current_level_Q16 >= vca1.target_level_Q16) {
+                    vca1.current_level_Q16 = vca1.target_level_Q16; // Hold at sustain
+                }
+            } else if (vca1.current_level_Q16 > vca1.target_level_Q16) {
+                // ANTI-CLICK FIX: If target is Softer: Slew DOWN smoothly
+                if (vca1.current_level_Q16 > vca1.target_level_Q16 + vca1.attack_step) {
+                    vca1.current_level_Q16 -= vca1.attack_step;
+                } else {
+                    vca1.current_level_Q16 = vca1.target_level_Q16; // Reached target
+                }
             }
         } else if (vca1.state == RELEASE) {
             if (vca1.current_level_Q16 > vca1.release_step) {
@@ -349,9 +365,17 @@ protected:
 
         // 3. Process VCA 2
         if (vca2.state == ATTACK) {
-            vca2.current_level_Q16 += vca2.attack_step;
-            if (vca2.current_level_Q16 >= vca2.target_level_Q16) {
-                vca2.current_level_Q16 = vca2.target_level_Q16;
+            if (vca2.current_level_Q16 < vca2.target_level_Q16) {
+                vca2.current_level_Q16 += vca2.attack_step;
+                if (vca2.current_level_Q16 >= vca2.target_level_Q16) {
+                    vca2.current_level_Q16 = vca2.target_level_Q16;
+                }
+            } else if (vca2.current_level_Q16 > vca2.target_level_Q16) {
+                if (vca2.current_level_Q16 > vca2.target_level_Q16 + vca2.attack_step) {
+                    vca2.current_level_Q16 -= vca2.attack_step;
+                } else {
+                    vca2.current_level_Q16 = vca2.target_level_Q16;
+                }
             }
         } else if (vca2.state == RELEASE) {
             if (vca2.current_level_Q16 > vca2.release_step) {
@@ -448,6 +472,14 @@ private:
             snapshot_buffer_count = buffer_count;
             for (int i = 0; i < buffer_count; i++) {
                 snapshot_buffer[i] = note_buffer[i];
+                
+                // FIX: If the note is currently being held when the switch is flipped, 
+                // calculate its real duration up to this exact moment. 
+                // Otherwise, the VCA will only open for the 2ms default and output silence!
+                if (i == buffer_count - 1 && active_live_note != -1) {
+                    uint32_t current_dur = global_tick_count - active_note_start_tick;
+                    snapshot_buffer[i].duration_ticks = (current_dur > 0) ? current_dur : 1;
+                }
             }
 
             last_n_notes_ch1 = n_notes_ch1;
