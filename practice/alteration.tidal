@@ -1,0 +1,74 @@
+-- Scaling
+-- -- -- -- --
+
+-- range
+d1 $ jux (iter 4) $ sound "bd sd:2*2"
+  |+ speed (slow 4 $ range 1 1.5 sine)
+
+
+-------------------------------
+--      Pattern alteration   --
+-------------------------------
+
+--------------------
+--  Drop out   --
+--------------------
+
+-- degrade
+-- degradeBy
+-- unDegradeBy
+
+--------------------
+--  Reptetition   --
+--------------------
+
+-- ply
+d1 $ ply "2 3" $ s "bd ~ sn cp"
+
+-- plyWith
+d1 $ plyWith "{2 3}%5" (|* speed "2") $ s "bd ~ sn cp"
+
+-- space out
+-- spaceOut xs p repeats a Pattern p at different durations given by the list of time values in xs.
+d1 $ spaceOut [2, 1, (1/2)] $ s "kurt:2 ul:7"
+
+-- stutter
+-- like ply but controls the spacing of the repetitions
+d1 $ stutter 4 (1/16) $ s "bd cp"
+
+-- stut
+-- like plyWith 4 |* amp 0.3
+d1 $ stut 4 0.3 (1/16) $ s "bd cp"
+
+-- stut based convenience functions
+echo   = stutter (2 :: Int)
+-- triple = stutter (3 :: Int)
+-- quad   = stutter (4 :: Int)
+
+
+
+-- Stripe
+-- repeats pattern n times at random speed but fits them into n cycles
+
+d1 $ stripe 3 $ sound "bd sd" # gain 1
+
+d2 $ sound "cp"
+
+-- slowstripe
+-- also slows down 3 times
+
+d1 $ slowstripe 3 $ sound "bd sd"
+
+d2 $ sound "cp"
+
+-- palindrome
+d1 $ palindrome $ sound "arpy:0 arpy:1 arpy:2 arpy:3"
+
+
+-- snowball
+-- takes a function that can combine patterns (like +), a function that transforms a pattern (like slow), a depth, and a starting pattern
+d1 $ note (
+  scale "hexDorian"
+  $ snowball 8 (+) (slow 2 . rev) "0 ~ . -1 _ 5 3 4 . ~ -2"
+)
+  # s "gtr"

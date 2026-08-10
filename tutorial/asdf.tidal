@@ -100,7 +100,7 @@ d1 $ s "[bd(5,8), cp(1,8)?, hh(7,8), bass:1(8,16)]"
 d1 $ s "{bd bd bd bd, cp cp hh}"
 
 -- polymetric sequence subdivision
-d1 $ s "{bd cp hh}%8"
+d1 $ s "{bd cp? hh}%8"
 
 
 ----------------------------------------
@@ -133,15 +133,18 @@ d1 $ fast 2 $ n "<c e g>" # s "superpiano"
 
 -- replicate
 d2 $ s "bd!2 cp!2"
+
 d2 $ s "bd!2 cp*2" -- not the same
 
 
 -- Sample Selection
 p "scroll" $ s "arpy:1 arpy:2 arpy:3 arpy:4 arpy:5"
+
 p "scroll" $  s "[bd*4, [arpy:1,arpy:2,arpy:3,arpy:4,arpy:5](5,8)]"
 
 -- Euclidean Rhythm
 d1 $ s "{bd([3|5],6), [[[hh:2*3?|sn:1*2] sn:1] | [sn:1(4,12,2)]/2?], hh*4}"
+
 d1 $ s "[bd(4,4), hh(4,6)]" + n "[34| 4| 0] [34| 4| 0] [34, 4  0]"
 
 d1 $ s "[808(4,11)]" + n "3 4" -- frank zappa Outside now

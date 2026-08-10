@@ -18,16 +18,15 @@ d2 $ arp "up"
 let tension val = nudge $ (range 0 1 $ slow 16 $ tri) * val -- val ~0.05
     tensionChunk c val = chunk c (|+ nudge val) -- c = cycle length, val ~0.02
 
-d1
+d2
    $ tensionChunk 4 0.02 -- Every 4th cycle, this track "pushes" ahead
    $ s "bd [~ sn] bd*2 [~ sn]"
    # tension 0.05 # gain 1.3
 
-d1 $ s "sd"
 
-d2 $ sometimesBy 0.2 (fast 2) $ jux (|+ nudge 0.5) $ struct "t(3,8)" $ arp "up converge" $  n " {c'min7 f'maj7'5 }%4 "  # s "logic" # legato "{0.5 0.6 0.9}%4" # tension 0.07 # amp (slow 2 $ range 0.5 1 sine)
+d3 $ sometimesBy 0.2 (fast 2) $ jux (|+ nudge 0.5) $ struct "t(3,8)" $ arp "up converge" $  n " {c'min7 f'maj7'5 }%4 "  # s "logic" # legato "{0.5 0.6 0.9}%4" # tension 0.07 # amp (slow 2 $ range 0.5 1 sine)
 
-d2 $ jux (rev) $ tensionChunk 4 0
+d3 $ jux (rev) $ tensionChunk 4 0
    $ s "sn hh(2,3) sn bd"
    # tension 0.05 # gain 1
 

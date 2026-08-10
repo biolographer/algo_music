@@ -1,0 +1,55 @@
+-- Define all custom CV parameters
+let snappy = pF "snappy"
+    lfoRate = pF "lfoRate"
+    polarity = pF "polarity"
+    att = pF "att"
+    susLevel = pF "susLevel"
+    porta = pF "porta"
+    volts = pF "volts"
+    midichan = pI "midichan"
+
+-- CORRECT way to send negative values:
+d3 $ s "setPitchCV" # midichan 0 # n "12 0 9"
+
+-- ============================
+-- 1. USING THE TRANSIENTS
+-- ============================
+
+-- Fire the 808 kick CV curve
+d1 $ struct (ascii "asdf") $ s "kick808" # midichan 2 # att 0.2
+
+-- Mix snappy + tone on the snare CV
+d1 $ s "snare808" # midichan 0
+
+-- Use a standard ADSR envelope (Scaled to duration of the note 'legato')
+d1 $ s "midiAR" # midichan 3 # attack 0.1 # release 0.01 # legato 0.8
+
+d2 $ struct "10001010" $ s "midiAR" # midichan 4 # attack 0.1 # release 0.2 # legato 0.8
+
+-- ============================
+-- 2. USING THE CONTINUOUS CVS
+-- ============================
+
+-- Start a continuous LFO (Notice phase does not reset over multiple cycles!)
+d2 $ s "setLFO" # midichan 1 # freq "1 4"
+
+-- Start Pitch CV
+d3 $ s "setPitchCV" # midichan 0 # n "0 1 2"
+
+-- ============================
+-- 3. THE AUTO CHOKE IN ACTION
+-- ============================
+
+-- If you start this continuous smooth wander on channel 5...
+once $ s "setSmooth" # midichan 0 # att (slow 8 $ "0.5 -0.3")
+
+once $ s "setSmooth" # midichan 1 # att (slow 8 $ "0.5 -0.3")
+
+-- ...and later run this envelope on the exact SAME channel...
+once $ s "midiAR" # midichan 1
+
+-- The `setSmooth` synth will be automatically killed and silenced, completely clearing the path for the AR envelope!*/
+
+d2 $ struct "10100101" $ s "bd*2 sd" # n "{1 2 4 3 6}%4"
+
+d2 $ silence

@@ -62,9 +62,9 @@ hush
 
 binary "125"
 
-d1  $ slow 8 $ every 10 (0.25 ~>)
-    $ striate 128 $ s "breaks152 "
-    # gain "1.2"
+d1  $ slow 4 -- $ every 10 (0.25 ~>)
+    $ striate 128 $ s "breaks152"
+    # gain "1"
 
 hush
 

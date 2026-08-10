@@ -1,3 +1,6 @@
+let clockSignal panX = s "click:1!8" # gain 1 # pan panX # speed 2 
+
+
 let settleShift tid n maxShift pat = qtrigger tid $ seqP [
         (0, n, shiftAmount ~> pat),
         (n, 9999, pat)
@@ -65,7 +68,7 @@ let settleGroupNudge tid cycs maxN pat = qtrigger tid $ seqP [
 --      in qtrigger $ seqP [(0, n, shiftAmount ~> pat), (n, 9999, pat)]
 
 
-let settleShift n maxShift pat = 
+let settleShift n maxShift pat =
       let decayEnv    = slow (pure n) isaw
           randGrid    = segment 16 rand
           shiftAmount = range 0 maxShift decayEnv * randGrid
@@ -76,7 +79,7 @@ let settleShift n maxShift pat =
 
 -- Usage: d1 $ settleShift 4 0.5 (s "bd hh sn hh")
 
-let settleNudge n maxNudge pat = 
+let settleNudge n maxNudge pat =
       let decayEnv = slow (pure n) isaw
       in qtrigger $ seqP [
             (0, n, pat |+ nudge (range 0 maxNudge decayEnv * rand)),
@@ -85,7 +88,7 @@ let settleNudge n maxNudge pat =
 
 -- Usage: d1 $ settleNudge 8 0.2 (s "bd ~ [~ hh] sn*3")
 
-let settleGlitch n maxShift pat = 
+let settleGlitch n maxShift pat =
       let decayEnv    = slow (pure n) isaw
           shiftAmount = range 0 maxShift decayEnv * rand
       in qtrigger $ seqP [
@@ -95,7 +98,7 @@ let settleGlitch n maxShift pat =
 
 -- Usage: d1 $ settleGlitch 8 0.5 (s "bd ~ sn:2 ~")
 
-let settleNudgeCPS n currentCps maxFraction pat = 
+let settleNudgeCPS n currentCps maxFraction pat =
       let decayEnv          = slow (pure n) isaw
           maxNudgeInSeconds = maxFraction * (1 / currentCps)
       in qtrigger $ seqP [
@@ -103,11 +106,11 @@ let settleNudgeCPS n currentCps maxFraction pat =
             (n, 9999, pat)
          ]
 
--- Usage: 
+-- Usage:
 -- setcps 1.2
 -- d1 $ settleNudgeCPS 8 1.2 0.25 (s "hc(5,8)")
 
-let settleGroupNudge cycs maxN pat = 
+let settleGroupNudge cycs maxN pat =
       let continuousEnv = range 0 maxN (slow (pure cycs) isaw) * rand
           frozenEnv     = segment 1 continuousEnv
       in qtrigger $ seqP [
@@ -119,7 +122,7 @@ let settleGroupNudge cycs maxN pat =
 
 
 
-let settleSpeed n maxVar pat = 
+let settleSpeed n maxVar pat =
       let decayEnv = slow (pure n) isaw
           -- Runging from negative to positive creates pitch bends up and down
           speedMod = range (-maxVar) maxVar rand * decayEnv
@@ -131,7 +134,7 @@ let settleSpeed n maxVar pat =
 -- Usage: maxVar 1 means it will swing wildly between double speed and reverse playback
 -- d1 $ settleSpeed 8 1 (s "amen:0*4" # speed 1)
 
-let settleNote n maxSemitones pat = 
+let settleNote n maxSemitones pat =
       let decayEnv = slow (pure n) isaw
           -- segment 16 freezes the random pitch per 16th note so synths don't constantly slide
           randGrid = segment 16 (range (-maxSemitones) maxSemitones rand)
@@ -144,7 +147,7 @@ let settleNote n maxSemitones pat =
 -- Usage: maxSemitones 12 means it will randomly jump up to an octave up or down
 -- d1 $ settleNote 8 12 (s "supermandolin*8" # note "c3" # sustain 0.2)
 
-let settleUp n maxSemitones pat = 
+let settleUp n maxSemitones pat =
       let decayEnv = slow (pure n) isaw
           randGrid = segment 16 (range (-maxSemitones) maxSemitones rand)
           pitchMod = randGrid * decayEnv
@@ -156,7 +159,7 @@ let settleUp n maxSemitones pat =
 -- Usage: Scrambles the pitch of the hi-hats wildly, then locks into normal tuning
 -- d1 $ settleUp 4 24 (s "bd ~ [~ hh] sn*3")
 
-let settleCC n targetCC baseVal maxVar pat = 
+let settleCC n targetCC baseVal maxVar pat =
       let decayEnv = slow (pure n) isaw
           -- Calculates the decaying random offset
           ccMod    = range (-maxVar) maxVar rand * decayEnv
