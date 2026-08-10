@@ -24,9 +24,12 @@ void scl_reader_read(t_scl_reader *x, t_symbol *s) {
     int expected_notes = 0;
     int notes_read = 0;
     
-    t_atom output_list[256]; 
-    int list_index = 0;
+   t_atom output_list[257]; 
     
+    /* Automatically inject the 0.0 cents root note at the start */
+    /*SETFLOAT(&output_list[0], 0.0); int list_index = 1; Start adding read notes at index 1 */
+    int list_index = 0;
+
     t_atom header_list[256];
     int header_count = 0;
 
@@ -53,9 +56,9 @@ void scl_reader_read(t_scl_reader *x, t_symbol *s) {
             expected_notes = atoi(ptr);
             state = 2;
         } else if (state == 2) {
-            /* State 2: Pitches */
             double cents = 0.0;
             
+            /* 1. Parse the pitch value */
             if (strchr(ptr, '.')) {
                 sscanf(ptr, "%lf", &cents);
             } else if (strchr(ptr, '/')) {
@@ -70,10 +73,27 @@ void scl_reader_read(t_scl_reader *x, t_symbol *s) {
                 }
             }
             
-            SETFLOAT(&output_list[list_index], (t_float)cents);
-            list_index++;
+            /* 2. Safely handle the root note (0.0 cents) */
+            if (list_index == 0) {
+                if (cents == 0.0) {
+                    /* The file already included the root, so just add it */
+                    SETFLOAT(&output_list[list_index], (t_float)cents);
+                    list_index++;
+                } else {
+                    /* The file correctly omitted the root, so inject it first */
+                    SETFLOAT(&output_list[0], 0.0);
+                    SETFLOAT(&output_list[1], (t_float)cents);
+                    list_index = 2; /* We've now filled two slots */
+                }
+            } else {
+                /* For all subsequent notes, add them normally */
+                SETFLOAT(&output_list[list_index], (t_float)cents);
+                list_index++;
+            }
+            
             notes_read++;
             
+            /* 3. Stop if we reach the note limit or max array bounds */
             if (notes_read >= expected_notes || list_index >= 256) break;
         }
     }
