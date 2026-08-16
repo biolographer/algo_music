@@ -1,0 +1,17 @@
+#N canvas 600 200 500 400 12;
+#X obj 50 20 inlet;
+#X text 100 20 bang (trigger);
+#X msg 50 110 127;
+#X msg 134 85 0;
+#X obj 170 132 pipe 50;
+#X obj 50 180 outlet;
+#X text 100 180 127 immediately then 0 after 50ms;
+#X text 50 250 Trigger pulse generator;
+#X text 50 270 Input: bang;
+#X text 50 290 Output: 127 immediately 0 after 50ms delay;
+#X text 50 310 Uses pipe (not delay) to preserve the payload;
+#X connect 0 0 3 0;
+#X connect 0 0 2 0;
+#X connect 2 0 5 0;
+#X connect 3 0 4 0;
+#X connect 4 0 5 0;

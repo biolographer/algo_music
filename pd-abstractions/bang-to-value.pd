@@ -1,0 +1,11 @@
+#N canvas 600 200 500 300 12;
+#X obj 50 20 inlet;
+#X text 100 20 bang;
+#X floatatom 180 21 5 0 100000 0 value - - 0;
+#X obj 50 60 pack f;
+#X obj 50 90 outlet;
+#X text 100 90 value on bang;
+#X text 50 150 Bang to Value Converter;
+#X text 50 170 Outputs specified value when bang received;
+#X connect 0 0 3 0;
+#X connect 3 0 4 0;

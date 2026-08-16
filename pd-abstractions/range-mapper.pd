@@ -1,0 +1,14 @@
+#N canvas 600 200 500 400 12;
+#X obj 50 20 inlet;
+#X text 100 20 value 0-127;
+#X obj 50 50 / 127;
+#X obj 50 80 * 16383;
+#X obj 50 110 - 8191.5;
+#X obj 50 140 outlet;
+#X text 100 140 pitchbend -8192 to 8191;
+#X text 50 200 Maps 0-127 range to pitchbend value;
+#X text 50 220 Used for velocity and LFO envelopes;
+#X connect 0 0 2 0;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;
+#X connect 4 0 5 0;
