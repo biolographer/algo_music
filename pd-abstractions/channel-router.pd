@@ -75,6 +75,11 @@
 #X obj 63 591 ==;
 #X text -123 675 pb implementation would need fixing;
 #X msg 192 938 0;
+#X floatatom 214 469 5 0 0 0 - - - 12;
+#X floatatom 251 520 5 0 0 0 - - - 12;
+#X floatatom 348 1134 5 0 0 0 - - - 12;
+#X floatatom 769 1329 5 0 0 0 - - - 12;
+#X floatatom 133 330 5 0 0 0 - - - 12;
 #X connect 0 0 1 1;
 #X connect 0 0 2 1;
 #X connect 1 0 3 0;
@@ -100,7 +105,7 @@
 #X connect 18 0 26 1;
 #X connect 19 0 27 1;
 #X connect 20 0 28 1;
-#X connect 21 0 30 0;
+#X connect 21 0 78 0;
 #X connect 22 0 29 0;
 #X connect 23 0 29 0;
 #X connect 24 0 29 0;
@@ -110,9 +115,9 @@
 #X connect 28 0 29 0;
 #X connect 29 0 30 0;
 #X connect 30 0 62 0;
-#X connect 55 0 1 0;
+#X connect 55 0 80 0;
 #X connect 56 0 12 0;
-#X connect 57 0 0 0;
+#X connect 57 0 77 0;
 #X connect 58 0 2 0;
 #X connect 58 0 5 0;
 #X connect 58 0 9 0;
@@ -125,9 +130,9 @@
 #X connect 59 0 19 0;
 #X connect 59 0 20 0;
 #X connect 59 0 18 0;
-#X connect 60 0 63 0;
+#X connect 60 0 79 0;
+#X connect 61 0 76 0;
 #X connect 61 0 73 1;
-#X connect 61 0 0 1;
 #X connect 64 0 11 2;
 #X connect 64 0 9 4;
 #X connect 65 0 11 1;
@@ -148,3 +153,8 @@
 #X connect 72 0 73 0;
 #X connect 73 0 71 1;
 #X connect 75 0 3 1;
+#X connect 76 0 0 1;
+#X connect 77 0 0 0;
+#X connect 78 0 30 0;
+#X connect 79 0 63 0;
+#X connect 80 0 1 0;

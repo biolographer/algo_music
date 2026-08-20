@@ -7,7 +7,7 @@
 #X obj 102 -456 midi.clock;
 #X obj 202 -456 bendin;
 #X text 2 -486 Shared MIDI input (fans out to all 12 channels below);
-#X obj 48 -56 channel-router;
+#X obj -341 -123 channel-router;
 #X obj 362 -327 loadbang;
 #X text 173 -23 CHANNEL 1;
 #X obj 4 10 cnv 15 101 231 empty empty Channel_1 15 12 0 16 #90b77c #000000 0;
@@ -40,7 +40,7 @@
 #X obj 24 254 scope~ 200 100 256 3 128 -9000 9000 0 0 0 0 90 90 90 227 223 217 150 142 130 0 empty;
 #X obj -78 91 f2s~;
 #X obj 153 -105 + 1;
-#X obj 698 -56 channel-router;
+#X obj 569 -160 channel-router;
 #X obj 1012 -327 loadbang;
 #X text 490 -31 CHANNEL 2;
 #X obj 249 10 cnv 15 101 231 empty empty Channel_2 15 12 0 16 #e9b25c #000000 0;
@@ -400,8 +400,10 @@
 #X obj 1283 600 scope~ 200 100 256 3 128 -9000 9000 0 0 0 0 90 90 90 227 223 217 150 142 130 0 empty;
 #X obj 1970 1523 f2s~;
 #X obj 2103 1295 + 1;
+#X floatatom -129 -413 5 0 0 0 - - - 12;
+#X floatatom -71 -413 5 0 0 0 - - - 12;
+#X connect 4 0 401 0;
 #X connect 4 0 8 3;
-#X connect 4 0 41 3;
 #X connect 4 0 74 3;
 #X connect 4 0 107 3;
 #X connect 4 0 140 3;
@@ -412,8 +414,8 @@
 #X connect 4 0 302 3;
 #X connect 4 0 335 3;
 #X connect 4 0 368 3;
+#X connect 4 0 41 3;
 #X connect 4 1 8 7;
-#X connect 4 1 41 7;
 #X connect 4 1 74 7;
 #X connect 4 1 107 7;
 #X connect 4 1 140 7;
@@ -424,8 +426,9 @@
 #X connect 4 1 302 7;
 #X connect 4 1 335 7;
 #X connect 4 1 368 7;
+#X connect 4 1 41 7;
+#X connect 4 2 402 0;
 #X connect 4 2 8 5;
-#X connect 4 2 41 5;
 #X connect 4 2 74 5;
 #X connect 4 2 107 5;
 #X connect 4 2 140 5;
@@ -436,8 +439,8 @@
 #X connect 4 2 302 5;
 #X connect 4 2 335 5;
 #X connect 4 2 368 5;
+#X connect 4 2 41 5;
 #X connect 5 0 8 2;
-#X connect 5 0 41 2;
 #X connect 5 0 74 2;
 #X connect 5 0 107 2;
 #X connect 5 0 140 2;
@@ -448,8 +451,8 @@
 #X connect 5 0 302 2;
 #X connect 5 0 335 2;
 #X connect 5 0 368 2;
+#X connect 5 0 41 2;
 #X connect 6 0 8 0;
-#X connect 6 0 41 0;
 #X connect 6 0 74 0;
 #X connect 6 0 107 0;
 #X connect 6 0 140 0;
@@ -460,8 +463,8 @@
 #X connect 6 0 302 0;
 #X connect 6 0 335 0;
 #X connect 6 0 368 0;
+#X connect 6 0 41 0;
 #X connect 6 1 8 1;
-#X connect 6 1 41 1;
 #X connect 6 1 74 1;
 #X connect 6 1 107 1;
 #X connect 6 1 140 1;
@@ -472,6 +475,7 @@
 #X connect 6 1 302 1;
 #X connect 6 1 335 1;
 #X connect 6 1 368 1;
+#X connect 6 1 41 1;
 #X connect 8 0 36 0;
 #X connect 8 0 39 0;
 #X connect 8 1 36 1;
