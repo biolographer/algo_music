@@ -14,11 +14,11 @@ let tintin :: Pattern Double -> Pattern Note -> Pattern Note -> Pattern Note
 
 
 -- example
-do
-  let melody    = "c e d f"
-      offset    = slow 3 "1"
-      baseChord = slow 3 $ "a'min b'minor7 g'maj7"
-  d1 $ slow 4 $ stack
-    [ n (tintin offset baseChord melody) # s "logic"
-    , n melody # s "logic" -- s "superpiano" # gain 0.8
-    ]
+let melody    = "c3 e3 d3 f3"
+    offset    = 4
+    baseChord = slow 2 $ "a'min g'7 c'maj"
+
+d1 $ slow 2 $ stack
+  [ n (tintin offset baseChord melody) # s "befaco" # midichan 0 # nudge humanDrift
+  , n melody # s "befaco" # midichan 1
+  ] # legato 0.5
