@@ -54,7 +54,7 @@ enableLink
 -- Tintinnabuli pattern generator
 -- example:
 -- d1 $ slow 2 $ stack  [ n (tintin "4" "a'min" "c3 e3 d3 f3") # s "befaco"
-
+:{
 let tintin :: Pattern Double -> Pattern Note -> Pattern Note -> Pattern Note
     tintin offP chordP melP =
       (((\mel off tones -> pick tones (unNote mel + off)) <$> melP)
@@ -67,6 +67,16 @@ let tintin :: Pattern Double -> Pattern Note -> Pattern Note -> Pattern Note
           where
             cands = [ unNote t + 12 * o | t <- tones, o <- [-5 .. 5] ]
 
+    staticDrift = (slow 32 $ range (-0.02) 0.02 sine) + (slow 8 $ range (-0.01) 0.01 rand)
+
+    -- Define a global "Group Tension"
+    drift val = nudge $ (range 0 1 $ slow 16 $ tri) * val -- val ~0.05
+    cycleDrift c val = chunk c (|+ nudge val) -- c = cycle length, val ~0.02
+
+    drift' = drift 0.05
+    cycleDrift' = cycleDrift 4 0.02
+:}
+
 
 -- Rhythmic humanization
 -- 
@@ -76,16 +86,3 @@ let tintin :: Pattern Double -> Pattern Note -> Pattern Note -> Pattern Note
 --   $ s "bd [~ sn] bd*2 [~ sn]"
 --   # drift 0.05 
 --
-
-let
-  staticDrift = (slow 32 $ range (-0.02) 0.02 sine) + (slow 8 $ range (-0.01) 0.01 rand)
-
--- Define a global "Group Tension"
-let 
-    drift val = nudge $ (range 0 1 $ slow 16 $ tri) * val -- val ~0.05
-    cycleDrift c val = chunk c (|+ nudge val) -- c = cycle length, val ~0.02
-
-let 
-    drift' = drift 0.05
-    cycleDrift' = cycleDrift 4 0.02
-
