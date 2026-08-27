@@ -1,0 +1,32 @@
+
+
+-- meant to be played with a set of faders that are like a step sequencer giving the pitch
+
+let faders = cF 60 "20 21 22 23 24 25 26 27" -- reads fader CC values
+    semitoneOffset = faders - 60
+    bendValues = 8192 + (semitoneOffset * (16384 / 120))
+in
+d1 $ n "0*8"
+  # bend bendValues
+  # s "midi"
+  # midichan 0
+
+-- quantized step sequencer version
+let faders = cF 60 "20 21 22 23 24 25 26 27"
+    degrees = round <$> (faders - 60)
+    semitoneOffset = scale "minor" degrees
+    bendValues = 8192 + (semitoneOffset * (16384 / 120))
+in
+d1 $ n "0*8"
+  # bend bendValues
+  # s "midi"
+  # midichan 0
+
+
+-- scaling and use without any fader hardware
+let bendnote p = bend (round <$> (8192 + (p * (16384 / 120))))
+    bendscale sc p = bendnote (scale sc p)
+
+d1 $ n "0*8" # bendnote "-8 0 12 9" # s "midi" # midichan 0
+
+d1 $ n "0*8" # bendscale "minor" "0 2 4 7" # s "midi" # midichan 0
