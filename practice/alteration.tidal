@@ -25,12 +25,13 @@ d1 $ jux (iter 4) $ sound "bd sd:2*2"
 -- ply
 d1 $ ply "2 3" $ s "bd ~ sn cp"
 
+
 -- plyWith
 d1 $ plyWith "{2 3}%5" (|* speed "2") $ s "bd ~ sn cp"
 
 -- space out
 -- spaceOut xs p repeats a Pattern p at different durations given by the list of time values in xs.
-d1 $ spaceOut [2, 1, (1/2)] $ s "kurt:2 ul:7"
+d1 $ spaceOut [2, 0.125 ,1, 0.25, 1, (1/2)] $ s "kurt:1 ul:7" # n rand
 
 -- stutter
 -- like ply but controls the spacing of the repetitions
@@ -54,6 +55,9 @@ d1 $ stripe 3 $ sound "bd sd" # gain 1
 
 d2 $ sound "cp"
 
+
+
+
 -- slowstripe
 -- also slows down 3 times
 
@@ -72,3 +76,60 @@ d1 $ note (
   $ snowball 8 (+) (slow 2 . rev) "0 ~ . -1 _ 5 3 4 . ~ -2"
 )
   # s "gtr"
+
+
+-- soak
+-- Applies a function to a pattern and cats the resulting pattern, then continues applying the function until the depth is reached. This can be used to create a pattern that wanders away from the original pattern by continually adding random numbers.
+
+d1
+   $ soak 12 (fast 1.3 . (|* speed 0.9))
+   $ s "[808hc, bd sd]"
+
+
+-- trunc
+-- truncates pattern and fills in blanks
+
+d1 $ every 2 (trunc 0.5) $ sound "bd sn*2 cp hh*4 arpy bd*2 cp bd*2"
+
+-- linger
+d1 $ every 2 (linger 0.5) $ sound "bd sn*2 cp hh*4 arpy bd*2 cp bd*2"
+
+d1 $ every 4 (linger 0.25) $ n "0 2 [3 4] 2" # sound "arpy"
+
+d1 $ every 2 (linger "<0.25 0.75 0.5>") $ loopAt 1 $ chop 8 $ sound "breaks125" # speed 0.8 # distort (range 0 0.1 (slow 3 sine))
+
+d1 $ linger "<0.75 0.25 1>" $ sound "bd sn:2 [mt rs] hc"
+
+
+
+-- chunk
+-- divide pattern and apply function to parts iteratively
+-- chunk 4: BD hh sn cp -> bd HH sn cp -> bd hh SN cp...
+-- chunk' same but in reverse
+
+d1 $ chunk 3 (|* speed 2) $ sound "bd hh sn cp"
+
+-- loopFirst
+-- plays initial variation of a loop
+
+d1 $ loopFirst $ s "<bd sd> <sd bd>" -- bd sd is played instead of bd sd sd bd
+
+-- can be used to "tame" degrade
+-- it will always play the same degraded loop instead of always iterating
+d1 $ loopFirst $ degradeBy 0.3 $ bite 4 (fast 4 $ timeLoop 7 "<[1 0] 2 [3 1] 2>") $ n "0 .. 7" # sound "arpy"
+
+
+-- timeloop n
+-- plays the first n variations of the loopAt
+
+d1 $ timeLoop 7 $ s "<bd sn cp hh>" -- same as <bd sn cp hh bd sn cp> (first 4 and wraps until 7 is reached)
+
+-- can be used to "tame" degrade
+-- timeLoop 1 is same as loopFirst
+d1 $ timeLoop "<1 3>" $ degradeBy 0.3 $ bite 4 (fast 4 $ timeLoop 7 "<[1 0] 2 [3 1] 2>") $ n "0 .. 7" # sound "arpy"
+
+
+
+-- bite
+
+d1 $ loopFirst $ degradeBy 0.3 $ bite 4 (fast 4 $ timeLoop 7 "<[1 0] 2 [3 1] 2>") $ n "0 .. 7" # sound "arpy"
