@@ -1,0 +1,58 @@
+-- functions to deal with sample length
+
+
+-- Sample Trimming
+
+-- ABSOLUTE
+--------------------------
+
+-- # sustain N
+-- plays N seconds of the sample
+
+d1 $ fast 2 $ s "breaks125:1" # cps (120/60/4) # sustain 1
+
+
+-- SAMPLE LENGTH RELATIVE
+--------------------------
+-- Relates to the event duration relative to the cylce
+
+-- # begin N
+-- plays the sample staring from Nth fraction
+
+d1 $ s "bd sn" # begin "0.5" -- plays the sample from the middle
+
+
+-- # end N
+-- trimms the last 1-N off the sample
+
+d1 $ s "bd sn" # end "0.5" -- plays the sample from start to the middle
+
+-- grain N M
+-- like # begin N # end M
+
+d1 $ s "bd sd" # grain 0.5 0.75
+-- equals
+d1 $ s "bd sd" # begin 0.5 # end 0.75
+
+-- grain' 
+-- can be used to pattern grain with "N:M"
+
+d1 $ "bd sd" # grain' "0.5:0.75"
+
+
+
+-- event relative
+-- relates to the event in the cycle
+
+-- cut N
+-- assign patterns to cutgroup N that choke each other
+
+d1 $ s "bd sd" # cut 1
+d2 $ s "hh*4" # cut 2 -- assigns d1 sounds to cutgroup 1 and d2 to cutgroup 2
+
+-- legato N
+-- relative to the event length it plays N of the event
+
+d1 $ sound "sax ~ ~ sax ~ ~ sax ~" # legato 1
+
+

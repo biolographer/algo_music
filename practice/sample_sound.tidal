@@ -1,0 +1,46 @@
+-- modifying the sound of samples
+
+-- SAMPLE LOUDNESS
+
+-- gain
+-- power function loudness
+
+d1 $ s "bd sd" # gain "<0.4 0.8 0.2>"
+
+-- amp
+-- similar to gain but with a linear response
+
+d1 $ s "bd sd" # amp "<0.4 0.8 0.2>"
+
+
+
+
+-- PLAYBACK SPEED
+
+-- accelerate N
+-- speeds up sample by N as it plays
+
+d1 $ s "arpy" # accelerate 2
+
+
+-- speed N
+-- plays the sample at a fractional speed
+
+d1 $ slow 5 $ s "sax:5" # legato 1 # speed 0.5
+
+d1 $ fast 2 $ s "breaks125:1" # cps (125/60/4) # speed (-2) -- negative values play it in reverse, here at -2x speed
+
+-- can be modified with 
+-- unit 
+-- unit "r" -> regular speed behaviour (r=rate)
+-- unit "c" -> c=cycles, speed is interpreted relative to cycle length
+-- unit "s" -> s=secons, accordingly
+
+
+-- TIME STRETCHING
+
+-- timescale N
+-- timestretches by fraction N
+
+-- stretches a break at 152 bpm to 130 bpm
+d1 $ slow 2 $ s "breaks152" # legato 1 # timescale (152/130) # cps (130/60/4)
