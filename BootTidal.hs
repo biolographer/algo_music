@@ -75,14 +75,17 @@ let tintin :: Pattern Double -> Pattern Note -> Pattern Note -> Pattern Note
 
     drift' = drift 0.05
     cycleDrift' = cycleDrift 4 0.02
+
+    -- slowly anneal a rhythm from random
+    settleNudge len strength = qt . (|+ nudge ((((perlin + (fast (len/2) envLR  + 0.1)*rand)/(2))*((slow len envLR)))*strength))
 :}
 
 
 -- Rhythmic humanization
--- 
+--
 -- example:
--- 
+--
 --   d1 $ cycleDrift 4 0.02      -- Every 4th cycle, this track "pushes" ahead
 --   $ s "bd [~ sn] bd*2 [~ sn]"
---   # drift 0.05 
+--   # drift 0.05
 --
